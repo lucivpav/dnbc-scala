@@ -12,6 +12,9 @@ class HiddenMarkovModel(sequenceLength: Int) {
   private var transitions: Array[Array[Double]] = Array.empty
   private var emissions: Array[Array[Double]] = Array.empty
 
+  private var initialCounts: Array[Int] = Array.empty
+  private var initialProbability: Array[Double] = Array.empty
+
   def learnSequence(hiddenStates: List[String], observedStates: List[String]): Unit = {
     if ( hiddenStates.length != sequenceLength || observedStates.length != sequenceLength )
       throw new Exception("Sequence to be learned is longer than expected sequence length")
@@ -20,14 +23,17 @@ class HiddenMarkovModel(sequenceLength: Int) {
 
     resizeTransitionCountsIfNecessary()
     resizeEmissionCountsIfNecessary()
+    resizeInitialCountsIfNecessary()
 
     addTransitionCounts(hiddenStates)
     addEmissionCounts(hiddenStates, observedStates)
+    addInitialCounts(hiddenStates)
   }
 
   def learnFinalize(): Unit = {
     calculateTransitions()
     calculateEmissions()
+    calculateInitialProbability()
   }
 
   private def calculateTransitions(): Unit = {
@@ -50,6 +56,13 @@ class HiddenMarkovModel(sequenceLength: Int) {
       }
   }
 
+  private def calculateInitialProbability(): Unit = {
+    val sum = initialCounts.sum
+    initialProbability = Array.ofDim(hiddenStateLastIndex)
+    for ( i <- initialProbability.indices )
+      initialProbability(i) = initialCounts(i).toDouble / sum
+  }
+
   private def addTransitionCounts(hiddenStates: List[String]): Unit = {
     for (i <- 0 to sequenceLength - 2) {
       val from = hiddenStateMap(hiddenStates(i))
@@ -64,6 +77,10 @@ class HiddenMarkovModel(sequenceLength: Int) {
       val to = observedStateMap(observedStates(i))
       emissionCounts.get(from)(to) += 1
     }
+  }
+
+  private def addInitialCounts(hiddenStates: List[String]): Unit = {
+    initialCounts(hiddenStateMap(hiddenStates.head)) += 1
   }
 
   private def resizeEmissionCountsIfNecessary(): Unit = {
@@ -90,6 +107,13 @@ class HiddenMarkovModel(sequenceLength: Int) {
             transitionCounts.get(i)(j) = prev(i)(j)
       case _ =>
     }
+  }
+
+  private def resizeInitialCountsIfNecessary(): Unit = {
+    val prev = initialCounts.clone()
+    initialCounts = Array.ofDim[Int](hiddenStateLastIndex)
+    for (i <- prev.indices)
+        initialCounts(i) = prev(i)
   }
 
   private def addNewStatesToStateMaps(hiddenStates: List[String], observedStates: List[String]): Unit = {

@@ -9,17 +9,21 @@ object Main {
     var observedStates = ListBuffer.empty[String]
 
     var hmm = new HiddenMarkovModel(200)
-    val trainingSize = 100
-    var sequenceNumber = 1
+    var learningStage = true
 
-    for ( line <- file.getLines() if sequenceNumber < trainingSize )
+    for ( line <- file.getLines() )
     {
-      if ( line == "." )
-      {
-        hmm.learnSequence(hiddenStates.toList, observedStates.toList)
+      if ( line == "." || line == ".." ){
+        if (learningStage)
+          hmm.learnSequence(hiddenStates.toList, observedStates.toList)
+        else
+          hmm.infereMostLikelyHiddenStates(observedStates.toList)
+        if (line == ".." ) {
+          hmm.learnFinalize()
+          learningStage = false
+        }
         hiddenStates = ListBuffer.empty[String]
         observedStates = ListBuffer.empty[String]
-        sequenceNumber += 1
       }
       else
       {
@@ -28,7 +32,5 @@ object Main {
       }
     }
 
-    hmm.learnFinalize()
-    println("learning finished")
   }
 }

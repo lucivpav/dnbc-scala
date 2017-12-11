@@ -36,6 +36,24 @@ class HiddenMarkovModel(sequenceLength: Int) {
     calculateInitialProbability()
   }
 
+  def infereMostLikelyHiddenStates(observedStates: List[String]): List[String] = {
+    // Viterbi
+    var vprev = List.concat(List.fill[Double](1)(Math.log(1.0)), List.fill[Double](hiddenStateLastIndex-1)(0.0))
+
+    for( i <- observedStates.indices )
+    {
+      val vcur = Array.ofDim[Double](hiddenStateLastIndex)
+      for ( j <- 0 until hiddenStateLastIndex)
+      {
+        vcur(j) = Math.log(emissions(j).max) + vprev.zipWithIndex.map{case (v,idx) => v + Math.log(transitions(idx)(j))}.max
+        // TODO: reconstruct path
+      }
+      vprev = vcur.toList
+    }
+
+    List.empty[String]
+  }
+
   private def calculateTransitions(): Unit = {
     transitions = Array.ofDim[Double](hiddenStateLastIndex, hiddenStateLastIndex)
     for (i <- transitions.indices)

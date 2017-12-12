@@ -38,20 +38,33 @@ class HiddenMarkovModel(sequenceLength: Int) {
 
   def infereMostLikelyHiddenStates(observedStates: List[String]): List[String] = {
     // Viterbi
-    var vprev = List.concat(List.fill[Double](1)(Math.log(1.0)), List.fill[Double](hiddenStateLastIndex-1)(0.0))
 
-    for( i <- observedStates.indices )
+    /* initialization */
+    var path = Array.ofDim[Int](observedStates.length)
+    var vprev = List.empty[Double]
+
+    val vcur = Array.ofDim[Double](hiddenStateLastIndex)
+    for ( j <- 0 until hiddenStateLastIndex )
     {
+      val firstObservedState = observedStateMap(observedStates.head)
+      vcur(j) = Math.log(emissions(j)(firstObservedState)) + Math.log(initialProbability(j))
+    }
+    vprev = vcur.toList
+
+    /* algorithm */
+    for( i <- 1 until observedStates.length )
+    {
+      // append path
+      path(i-1) = vprev.zipWithIndex.maxBy(_._1)._2
       val vcur = Array.ofDim[Double](hiddenStateLastIndex)
       for ( j <- 0 until hiddenStateLastIndex)
       {
-        vcur(j) = Math.log(emissions(j).max) + vprev.zipWithIndex.map{case (v,idx) => v + Math.log(transitions(idx)(j))}.max
-        // TODO: reconstruct path
+        vcur(j) = Math.log(emissions(j)(observedStateMap(observedStates(i)))) + vprev.zipWithIndex.map{case (v,idx) => v + Math.log(transitions(idx)(j))}.max
       }
       vprev = vcur.toList
     }
-
-    List.empty[String]
+    path(path.length-1) = vprev.zipWithIndex.maxBy(_._1)._2
+    path.map(p => hiddenStateMap.find{case (str,idx) => idx == p}.get._1).toList
   }
 
   private def calculateTransitions(): Unit = {

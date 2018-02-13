@@ -1,5 +1,5 @@
-# simple-hmm
-Implementation of Hidden Markov Models with discrete states
+# dnbc-scala
+Parallel implementation of dynamic naive Bayesian classifier
 ## Performance 
 Measurements were made on [Toy Robot dataset](https://www.cs.princeton.edu/courses/archive/fall06/cos402/hw/hw5/hw5.html)
 

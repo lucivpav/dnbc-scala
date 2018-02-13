@@ -18,14 +18,17 @@ object Main {
     var successRate = ListBuffer.empty[Double]
     var successRateWithoutInitialState = ListBuffer.empty[Double]
 
-    var hmm = new HiddenMarkovModel(200)
+    var hmm = new DynamicNaiveBayesianClassifier(200, 1, 0)
     var learningStage = true
 
     for ( line <- file.getLines() )
     {
       if ( line == "." || line == ".." ){
-        if (learningStage)
-          hmm.learnSequence(hiddenStates.toList, observedStates.toList)
+        if (learningStage) {
+          var observedDiscreteVars = ListBuffer.empty[List[String]]
+          observedDiscreteVars += observedStates.toList
+          hmm.learnSequence(hiddenStates.toList, observedDiscreteVars.toList, List.empty)
+        }
         else
         {
           val inferedHiddenStates = hmm.infereMostLikelyHiddenStates(observedStates.toList)

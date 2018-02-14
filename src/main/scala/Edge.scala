@@ -28,3 +28,26 @@ class DiscreteEdge extends Edge[String] {
   private var counts: Map[String,Int] = Map.empty
   private var probabilities: Map[String,Double] = Map.empty
 }
+
+
+import scala.collection.mutable.ListBuffer
+
+class ContinuousEdge() extends Edge[Double] {
+
+  override def learn(occurence: Double): Unit = {
+    occurrences += occurence
+  }
+
+  override def learnFinalize(): Unit = {
+    mean = occurrences.sum / occurrences.length
+    variance = occurrences.map(o => scala.math.pow(o-mean,2)).sum / occurrences.length
+  }
+
+  override def probability(state: Double): Double = {
+    (1/scala.math.sqrt(2*scala.math.Pi*variance))*scala.math.pow(scala.math.E,-scala.math.pow(state - mean, 2)/(2*variance)) //eh.
+  }
+
+  private var occurrences: ListBuffer[Double] = ListBuffer.empty
+  private var mean: Double = 0.0
+  private var variance: Double = 0.0
+}

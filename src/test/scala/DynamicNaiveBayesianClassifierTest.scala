@@ -1,4 +1,4 @@
-import org.scalatest.{FunSuite, Ignore}
+import org.scalatest.FunSuite
 
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
@@ -13,7 +13,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
 
     var successRate = ListBuffer.empty[Double]
 
-    var hmm = new DynamicNaiveBayesianClassifier(200, 1, 0)
+    var dnbc = new DynamicNaiveBayesianClassifier(200, 1, 0)
     var learningStage = true
 
     for ( line <- file.getLines() )
@@ -22,20 +22,20 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
         if (learningStage) {
           var observedDiscreteVars = ListBuffer.empty[List[String]]
           observedDiscreteVars += observedStates.toList
-          hmm.learnSequence(hiddenStates.toList, observedDiscreteVars.toList, List.empty)
+          dnbc.learnSequence(hiddenStates.toList, observedDiscreteVars.toList, List.empty)
         }
         else
         {
           var observedDiscreteVars = ListBuffer.empty[List[String]]
           observedDiscreteVars += observedStates.toList
-          val inferedHiddenStates = hmm.infereMostLikelyHiddenStates(observedDiscreteVars.toList, List.empty)
+          val inferedHiddenStates = dnbc.infereMostLikelyHiddenStates(observedDiscreteVars.toList, List.empty)
           if ( inferedHiddenStates.lengthCompare(hiddenStates.length) != 0 )
             throw new Exception("hidden states length mismatch")
 
           successRate += hiddenStates.zipWithIndex.count(o => o._1 == inferedHiddenStates(o._2)) / hiddenStates.length.toDouble
         }
         if (line == ".." ) {
-          hmm.learnFinalize()
+          dnbc.learnFinalize()
           learningStage = false
         }
         hiddenStates = ListBuffer.empty[String]
@@ -61,7 +61,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
 
     var successRate = ListBuffer.empty[Double]
 
-    var hmm = new DynamicNaiveBayesianClassifier(200, 0, 1)
+    var dnbc = new DynamicNaiveBayesianClassifier(200, 0, 1)
     var learningStage = true
 
     for ( line <- file.getLines() )
@@ -70,20 +70,20 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
         if (learningStage) {
           var observedContinuousVars = ListBuffer.empty[List[Double]]
           observedContinuousVars += observedStates.toList
-          hmm.learnSequence(hiddenStates.toList, List.empty, observedContinuousVars.toList)
+          dnbc.learnSequence(hiddenStates.toList, List.empty, observedContinuousVars.toList)
         }
         else
         {
           var observedContinuousVars = ListBuffer.empty[List[Double]]
           observedContinuousVars += observedStates.toList
-          val inferedHiddenStates = hmm.infereMostLikelyHiddenStates(List.empty, observedContinuousVars.toList)
+          val inferedHiddenStates = dnbc.infereMostLikelyHiddenStates(List.empty, observedContinuousVars.toList)
           if ( inferedHiddenStates.lengthCompare(hiddenStates.length) != 0 )
             throw new Exception("hidden states length mismatch")
 
           successRate += hiddenStates.zipWithIndex.count(o => o._1 == inferedHiddenStates(o._2)) / hiddenStates.length.toDouble
         }
         if (line == ".." ) {
-          hmm.learnFinalize()
+          dnbc.learnFinalize()
           learningStage = false
         }
         hiddenStates = ListBuffer.empty[String]
@@ -110,7 +110,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
 
     var successRate = ListBuffer.empty[Double]
 
-    var hmm = new DynamicNaiveBayesianClassifier(200, 1, 1)
+    var dnbc = new DynamicNaiveBayesianClassifier(200, 1, 1)
     var learningStage = true
 
     for ( line <- file.getLines() )
@@ -121,7 +121,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
           var observedDiscreteVars = ListBuffer.empty[List[String]]
           observedContinuousVars += observedContinuousStates.toList
           observedDiscreteVars += observedDiscreteStates.toList
-          hmm.learnSequence(hiddenStates.toList, observedDiscreteVars.toList, observedContinuousVars.toList)
+          dnbc.learnSequence(hiddenStates.toList, observedDiscreteVars.toList, observedContinuousVars.toList)
         }
         else
         {
@@ -129,14 +129,14 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
           var observedDiscreteVars = ListBuffer.empty[List[String]]
           observedContinuousVars += observedContinuousStates.toList
           observedDiscreteVars += observedDiscreteStates.toList
-          val inferedHiddenStates = hmm.infereMostLikelyHiddenStates(observedDiscreteVars.toList, observedContinuousVars.toList)
+          val inferedHiddenStates = dnbc.infereMostLikelyHiddenStates(observedDiscreteVars.toList, observedContinuousVars.toList)
           if ( inferedHiddenStates.lengthCompare(hiddenStates.length) != 0 )
             throw new Exception("hidden states length mismatch")
 
           successRate += hiddenStates.zipWithIndex.count(o => o._1 == inferedHiddenStates(o._2)) / hiddenStates.length.toDouble
         }
         if (line == ".." ) {
-          hmm.learnFinalize()
+          dnbc.learnFinalize()
           learningStage = false
         }
         hiddenStates = ListBuffer.empty[String]
@@ -156,5 +156,29 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
     println(s"Average success rate: $avg%")
 
     assert( avg > 55 )
+  }
+
+  test("Passing invalid parameters should result in an exception") {
+    var dnbc = new DynamicNaiveBayesianClassifier(2, 1, 1)
+
+    val hiddenStates = Seq("A", "B").toList
+    val discreteVariables = Seq(Seq("r", "b").toList).toList
+    val continuousVariables = Seq(Seq(42.666, 1.1).toList).toList
+
+    val invalidHiddenStates = Seq("A").toList
+    val invalidDiscreteVariables = Seq(Seq("r").toList).toList
+    val invalidContinuousVariables = Seq(Seq(42.666).toList).toList
+
+    intercept[Exception] { dnbc.learnSequence(hiddenStates, invalidDiscreteVariables, invalidContinuousVariables) }
+    intercept[Exception] { dnbc.learnSequence(hiddenStates, discreteVariables, invalidContinuousVariables) }
+    intercept[Exception] { dnbc.learnSequence(hiddenStates, invalidDiscreteVariables, continuousVariables) }
+    intercept[Exception] { dnbc.learnSequence(invalidHiddenStates, discreteVariables, continuousVariables) }
+    intercept[Exception] { dnbc.learnSequence(hiddenStates, invalidDiscreteVariables, invalidContinuousVariables) }
+    dnbc.learnSequence(hiddenStates, discreteVariables, continuousVariables)
+    dnbc.learnFinalize()
+    intercept[Exception] { dnbc.infereMostLikelyHiddenStates(invalidDiscreteVariables, invalidContinuousVariables) }
+    intercept[Exception] { dnbc.infereMostLikelyHiddenStates(discreteVariables, invalidContinuousVariables) }
+    intercept[Exception] { dnbc.infereMostLikelyHiddenStates(invalidDiscreteVariables, continuousVariables) }
+    dnbc.infereMostLikelyHiddenStates(discreteVariables, continuousVariables)
   }
 }

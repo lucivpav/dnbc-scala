@@ -5,14 +5,14 @@ import scala.util.Random
 
 object Main {
   def main(args: Array[String]): Unit = {
-    val continuousDatasetName = "dataset/robot_no_momemtum_continuous.data"
+    val continuousDatasetName = "dataset/robot_no_momentum_continuous.data"
     GenerateContinuousDataSet(continuousDatasetName)
     GenerateDataSetWithTwoVariables(continuousDatasetName)
   }
 
   // Generates continuous data set based on robot_no_momentum.data
   private def GenerateContinuousDataSet(continuousDataSetName: String): Unit = {
-    var in = Source.fromFile("dataset/robot_no_momemtum.data")
+    var in = Source.fromFile("dataset/robot_no_momentum.data")
     var out = new PrintWriter(new File(continuousDataSetName))
 
     val RedGaussian = new RandomGaussian(20, 5)
@@ -43,7 +43,7 @@ object Main {
   // The resulting data set contains two observed variables, one discrete and one continuous
   private def GenerateDataSetWithTwoVariables(continuousDataSetName: String): Unit = {
     var in = Source.fromFile(continuousDataSetName)
-    var out = new PrintWriter(new File("dataset/robot_no_momemtum_bivariate.data"))
+    var out = new PrintWriter(new File("dataset/robot_no_momentum_bivariate.data"))
     for (line <- in.getLines()) {
       if (line == "." || line == "..") {
         out.write(line + "\n")

@@ -6,111 +6,135 @@ class DynamicNaiveBayesianClassifier(sequenceLength: Int,
                                      discreteVariablesCount: Int, continuousVariablesCount: Int) {
   private var initialEdge: DiscreteEdge = new DiscreteEdge
   private var transitions: Map[String, DiscreteEdge] = Map.empty
-  private var discreteEmissions: Map[String, DiscreteEdge] = Map.empty
-  private var continuousEmissions: Map[String, ContinuousEdge] = Map.empty
+  private var discreteEmissions: Array[Map[String, DiscreteEdge]] = Array.ofDim(discreteVariablesCount)
+  private var continuousEmissions: Array[Map[String, ContinuousEdge]] = Array.ofDim(continuousVariablesCount)
+
+  initializeEmissions()
 
   def learnSequence(hiddenStates: List[String],
                     observedDiscreteVariables: List[List[String]],
                     observedContinuousVariables: List[List[Double]]): Unit = {
-    if ( observedDiscreteVariables.length != discreteVariablesCount )
-      throw new Exception("Number of observed discrete variables does not correspond to count set")
-    if ( observedContinuousVariables.length != continuousVariablesCount )
-      throw new Exception("Number of observed continuous variables does not correspond to count set")
-
-    if ( discreteVariablesCount+continuousVariablesCount != 1 )
-      throw new Exception("Support for multiple observed variables not yet implemented")
-
-    val discrete = discreteVariablesCount == 1
-    var observedDiscreteStates = List.empty[String]
-    var observedContinuousStates = List.empty[Double]
-    if ( discrete )
-      observedDiscreteStates ++= observedDiscreteVariables.head
-    else
-      observedContinuousStates ++= observedContinuousVariables.head
-
-    if ( hiddenStates.length != sequenceLength ||
-          (discrete && observedDiscreteStates.length != sequenceLength ) ||
-          (!discrete && observedContinuousStates.length != sequenceLength) )
-      throw new Exception("Sequence to be learned is longer than expected sequence length")
-
-    /* discrete emissions */
-    if (discrete) {
-      for (i <- hiddenStates.indices) {
-        val hiddenState = hiddenStates(i)
-        val observedState = observedDiscreteStates(i)
-        if (!discreteEmissions.contains(hiddenState))
-          discreteEmissions += (hiddenState -> new DiscreteEdge)
-        discreteEmissions(hiddenState).learn(observedState)
-      }
-    }
-    else { /* continuous emissions */
-      for (i <- hiddenStates.indices) {
-        val hiddenState = hiddenStates(i)
-        val observedState = observedContinuousStates(i)
-        if (!continuousEmissions.contains(hiddenState))
-          continuousEmissions += (hiddenState -> new ContinuousEdge())
-        continuousEmissions(hiddenState).learn(observedState)
-      }
-    }
-
-    /* transitions */
-    for (i <- 0 to sequenceLength - 2) {
-      val from = hiddenStates(i)
-      val to = hiddenStates(i+1)
-      if (!transitions.contains(from))
-        transitions += (from -> new DiscreteEdge)
-      transitions(from).learn(to)
-    }
-    initialEdge.learn(hiddenStates.head)
+    checkValidHiddenStates(hiddenStates)
+    checkValidObservations(observedDiscreteVariables, observedContinuousVariables)
+    learnDiscreteEmissions(hiddenStates, observedDiscreteVariables)
+    learnContinuousEmissions(hiddenStates, observedContinuousVariables)
+    learnTransitions(hiddenStates)
+    learnInitialEdge(hiddenStates)
   }
 
   def learnFinalize(): Unit = {
     initialEdge.learnFinalize()
     transitions.foreach(t => t._2.learnFinalize())
-    discreteEmissions.foreach(e => e._2.learnFinalize())
-    continuousEmissions.foreach(e => e._2.learnFinalize())
+    discreteEmissions.foreach(e => e.foreach(e2 => e2._2.learnFinalize()))
+    continuousEmissions.foreach(e => e.foreach(e2 => e2._2.learnFinalize()))
   }
 
   def infereMostLikelyHiddenStates(observedDiscreteVariables: List[List[String]],
                                     observedContinuousVariables: List[List[Double]]): List[String] = {
-    val discrete = discreteVariablesCount == 1
-    var observedDiscreteStates = List.empty[String]
-    var observedContinuousStates = List.empty[Double]
-    if (discrete)
-      observedDiscreteStates ++= observedDiscreteVariables.head
-    else
-      observedContinuousStates ++= observedContinuousVariables.head
+    checkValidObservations(observedDiscreteVariables, observedContinuousVariables)
+    var probs = viterbiInitialize(observedDiscreteVariables, observedContinuousVariables)
+    viterbiCompute(probs, observedDiscreteVariables, observedContinuousVariables)
+  }
 
-    // Viterbi
+  private def initializeEmissions(): Unit = {
+    for (i <- 0 until discreteVariablesCount)
+      discreteEmissions(i) = Map.empty
+    for (i <- 0 until continuousVariablesCount)
+      continuousEmissions(i) = Map.empty
+  }
 
-    /* initialization */
-    var path = ListBuffer.empty[String]
-    var vprev = Map.empty[String,Double]
+  private def checkValidHiddenStates(hiddenStates: List[String]): Unit = {
+    if (hiddenStates.lengthCompare(sequenceLength) != 0)
+      throw new Exception("Hidden sequence is longer than expected sequence length")
+  }
+
+  private def checkValidObservations(observedDiscreteVariables: List[List[String]],
+                                      observedContinuousVariables: List[List[Double]]): Unit = {
+    if (observedDiscreteVariables.lengthCompare(discreteVariablesCount) != 0)
+      throw new Exception("Number of observed discrete variables does not correspond to count set")
+    if (observedContinuousVariables.lengthCompare(continuousVariablesCount) != 0)
+      throw new Exception("Number of observed continuous variables does not correspond to count set")
+
+    val lengths = observedDiscreteVariables.map(v => v.length).union(observedContinuousVariables.map(v => v.length))
+    if (lengths.count(l => l != sequenceLength) != 0)
+      throw new Exception("Sequence to be learned is longer than expected sequence length")
+  }
+
+  private def learnInitialEdge(hiddenStates: List[String]): Unit = {
+    initialEdge.learn(hiddenStates.head)
+  }
+
+  private def learnTransitions(hiddenStates: List[String]): Unit = {
+    for (i <- 0 to sequenceLength - 2) {
+      val from = hiddenStates(i)
+      val to = hiddenStates(i + 1)
+      if (!transitions.contains(from))
+        transitions += (from -> new DiscreteEdge)
+      transitions(from).learn(to)
+    }
+  }
+
+  private def learnContinuousEmissions(hiddenStates: List[String], observedContinuousVariables: List[List[Double]]): Unit = {
+    for (i <- observedContinuousVariables.indices) {
+      val states = observedContinuousVariables(i)
+      var emission = continuousEmissions(i)
+      for (j <- 0 until sequenceLength) {
+        val hiddenState = hiddenStates(j)
+        val observedState = states(j)
+        if (!emission.contains(hiddenState))
+          emission += (hiddenState -> new ContinuousEdge)
+        emission(hiddenState).learn(observedState)
+      }
+      continuousEmissions(i) = emission
+    }
+  }
+
+  private def learnDiscreteEmissions(hiddenStates: List[String], observedDiscreteVariables: List[List[String]]): Unit = {
+    for (i <- observedDiscreteVariables.indices) {
+      val states = observedDiscreteVariables(i)
+      var emission = discreteEmissions(i)
+      for (j <- 0 until sequenceLength) {
+        val hiddenState = hiddenStates(j)
+        val observedState = states(j)
+        if (!emission.contains(hiddenState))
+          emission += (hiddenState -> new DiscreteEdge)
+        emission(hiddenState).learn(observedState)
+      }
+      discreteEmissions(i) = emission
+    }
+  }
+
+  private def viterbiInitialize(observedDiscreteVariables: List[List[String]],
+                                observedContinuousVariables: List[List[Double]]): Map[String,Double] = {
     var vcur = Map.empty[String,Double]
-    for ( hiddenState <- transitions.keys )
-    {
+    for (hiddenState <- transitions.keys) {
       var emissionsSum = 0.0
-      if (discrete)
-        emissionsSum += discreteEmissions(hiddenState).probability(observedDiscreteStates.head)
-      else
-        emissionsSum += continuousEmissions(hiddenState).probability(observedContinuousStates.head)
+      emissionsSum += discreteEmissions.zipWithIndex.map(z => z._1(hiddenState)
+        .probability(observedDiscreteVariables(z._2).head)).sum
+      emissionsSum += continuousEmissions.zipWithIndex.map(z => z._1(hiddenState)
+        .probability(observedContinuousVariables(z._2).head)).sum
       vcur += (hiddenState -> (Math.log(emissionsSum) + Math.log(initialEdge.probability(hiddenState))))
     }
-    vprev = vcur
+    vcur
+  }
 
-    /* algorithm */
+  private def viterbiCompute(probs: Map[String,Double],
+                             observedDiscreteVariables: List[List[String]],
+                             observedContinuousVariables: List[List[Double]]): List[String] = {
+    var vcur = Map.empty[String,Double]
+    var vprev = probs
+    var path = ListBuffer.empty[String]
     for( i <- 1 until sequenceLength )
     {
-      // append path
-      path += vprev.maxBy(_._2)._1
-      var vcur = Map.empty[String,Double]
+      path += vprev.maxBy(_._2)._1 // append path
+      vcur = Map.empty[String,Double]
       for ( hiddenState <- transitions.keys )
       {
         var emissionsSum = 0.0
-        if (discrete)
-          emissionsSum += discreteEmissions(hiddenState).probability(observedDiscreteStates(i))
-        else
-          emissionsSum += continuousEmissions(hiddenState).probability(observedContinuousStates(i))
+        emissionsSum += discreteEmissions.zipWithIndex.map(z => z._1(hiddenState)
+                                                            .probability(observedDiscreteVariables(z._2)(i))).sum
+        emissionsSum += continuousEmissions.zipWithIndex.map(z => z._1(hiddenState)
+                                                              .probability(observedContinuousVariables(z._2)(i))).sum
         vcur += (hiddenState -> (Math.log(emissionsSum) +
                                   vprev.maxBy{case (hs,p) => p + Math.log(transitions(hs).probability(hiddenState))}._2))
       }

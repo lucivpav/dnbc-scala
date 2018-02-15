@@ -7,7 +7,7 @@ import scala.io.Source
 class DynamicNaiveBayesianClassifierTest extends FunSuite {
 
   test("Single discrete observed variable") {
-    var file = Source.fromFile("dataset/robot_no_momemtum.data")
+    var file = Source.fromFile("dataset/robot_no_momentum.data")
     var hiddenStates = ListBuffer.empty[String]
     var observedStates = ListBuffer.empty[String]
 
@@ -55,7 +55,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
   }
 
   test("Single continuous observed variable") {
-    var file = Source.fromFile("dataset/robot_no_momemtum_continuous.data")
+    var file = Source.fromFile("dataset/robot_no_momentum_continuous.data")
     var hiddenStates = ListBuffer.empty[String]
     var observedStates = ListBuffer.empty[Double]
 
@@ -103,7 +103,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
   }
 
   test("One continuous and one discrete observed variable") {
-    var file = Source.fromFile("dataset/robot_no_momemtum_bivariate.data")
+    var file = Source.fromFile("dataset/robot_no_momentum_bivariate.data")
     var hiddenStates = ListBuffer.empty[String]
     var observedContinuousStates = ListBuffer.empty[Double]
     var observedDiscreteStates = ListBuffer.empty[String]

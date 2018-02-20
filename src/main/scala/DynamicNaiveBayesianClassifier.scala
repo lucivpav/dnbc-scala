@@ -1,15 +1,23 @@
+import org.apache.spark.SparkContext
+
 import scala.collection.mutable.ListBuffer
 
 // Usage: call learnSequence() once per each data in training set
 //        then finalize learning stage by calling learnFinalize()
-class DynamicNaiveBayesianClassifier(sequenceLength: Int,
-                                     discreteVariablesCount: Int, continuousVariablesCount: Int) {
+// continuousVariableHints - assumed number of normal distributions in a
+//                            particular continuous variable (Gaussian mixture), default is 1
+class DynamicNaiveBayesianClassifier(sc: SparkContext,
+                                      sequenceLength: Int,
+                                      discreteVariablesCount: Int, continuousVariablesCount: Int,
+                                      var continuousVariableHints: List[Int] = List.empty) {
   private var initialEdge: DiscreteEdge = new DiscreteEdge
   private var transitions: Map[String, DiscreteEdge] = Map.empty
   private var discreteEmissions: Array[Map[String, DiscreteEdge]] = Array.ofDim(discreteVariablesCount)
   private var continuousEmissions: Array[Map[String, ContinuousEdge]] = Array.ofDim(continuousVariablesCount)
 
   initializeEmissions()
+  checkValidHints()
+  initializeVariableHints()
 
   def learnSequence(hiddenStates: List[String],
                     observedDiscreteVariables: List[List[String]],
@@ -41,6 +49,24 @@ class DynamicNaiveBayesianClassifier(sequenceLength: Int,
       discreteEmissions(i) = Map.empty
     for (i <- 0 until continuousVariablesCount)
       continuousEmissions(i) = Map.empty
+  }
+
+  private def checkValidHints(): Unit = {
+    if ( continuousVariableHints.isEmpty )
+      return
+    if ( continuousVariableHints.lengthCompare(continuousVariablesCount) != 0 )
+      throw new Exception("Number of continuous variable hints does not correspond to the number of continous variables")
+    if ( continuousVariableHints.count(h => h < 1 ) != 0 )
+      throw new Exception("Number of suggested normal distributions in a continuous variable must be at least one")
+  }
+
+  private def initializeVariableHints(): Unit = {
+     if (continuousVariableHints.isEmpty) {
+      var hints = ListBuffer.empty[Int]
+      for ( i <- 0 until continuousVariablesCount )
+        hints += 1
+      continuousVariableHints = hints.toList
+    }
   }
 
   private def checkValidHiddenStates(hiddenStates: List[String]): Unit = {
@@ -81,8 +107,15 @@ class DynamicNaiveBayesianClassifier(sequenceLength: Int,
       for (j <- 0 until sequenceLength) {
         val hiddenState = hiddenStates(j)
         val observedState = states(j)
-        if (!emission.contains(hiddenState))
-          emission += (hiddenState -> new ContinuousEdge)
+        if (!emission.contains(hiddenState)) {
+          val k = continuousVariableHints(i)
+          var continuousEdge: ContinuousEdge = null
+          if (k == 1)
+            continuousEdge = new ContinuousGaussianEdge
+          else
+            continuousEdge = new ContinuousGaussianMixtureEdge(sc, continuousVariableHints(i))
+          emission += (hiddenState -> continuousEdge)
+        }
         emission(hiddenState).learn(observedState)
       }
       continuousEmissions(i) = emission

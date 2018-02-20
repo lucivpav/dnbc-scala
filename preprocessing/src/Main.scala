@@ -4,10 +4,12 @@ import scala.io.Source
 import scala.util.Random
 
 object Main {
+
   def main(args: Array[String]): Unit = {
     val continuousDatasetName = "dataset/robot_no_momentum_continuous.data"
     GenerateContinuousDataSet(continuousDatasetName)
     GenerateDataSetWithTwoVariables(continuousDatasetName)
+    GenerateDataSetWithGaussianMixtureVariable("dataset/gaussian_mixture.data")
   }
 
   // Generates continuous data set based on robot_no_momentum.data
@@ -15,10 +17,10 @@ object Main {
     var in = Source.fromFile("dataset/robot_no_momentum.data")
     var out = new PrintWriter(new File(continuousDataSetName))
 
-    val RedGaussian = new RandomGaussian(20, 5)
-    val GreenGaussian = new RandomGaussian(35, 7)
-    val BlueGaussian = new RandomGaussian(15, 3)
-    val YellowGaussian = new RandomGaussian(5, 1)
+    val RedGaussian = new Gaussian(20, 25)
+    val GreenGaussian = new Gaussian(35, 49)
+    val BlueGaussian = new Gaussian(15, 9)
+    val YellowGaussian = new Gaussian(5, 1)
 
     for (line <- in.getLines()) {
       if (line == "." || line == "..") {
@@ -88,10 +90,22 @@ object Main {
       quadrate = Random.nextInt(4)+1
     quadrate.toString
   }
-}
 
-class RandomGaussian(mean: Double, variance: Double) {
-  def nextRandom(): Double = {
-    Random.nextGaussian()*variance+mean
+  private def GenerateDataSetWithGaussianMixtureVariable(dataSetName: String): Unit = {
+    var out = new PrintWriter(new File(dataSetName))
+    val rnd = new Random()
+    val gaussian = new Gaussian(0, 16)
+    val gaussianMixture = new GaussianMixture(List(new Gaussian(-20, 9), new Gaussian(20, 9)))
+    for ( i <- 0 until 2001 ) {
+      val hiddenState = rnd.nextBoolean()
+      var value = 0.0
+
+      if ( hiddenState ) value = gaussian.nextRandom()
+      else value = gaussianMixture.nextRandom()
+
+      if ( i == 1000 ) out.write("..\n") // separate training and testing data
+      else out.write(hiddenState + " " + value + "\n")
+    }
+    out.close()
   }
 }

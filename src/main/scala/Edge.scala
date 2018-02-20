@@ -29,25 +29,53 @@ class DiscreteEdge extends Edge[String] {
   private var probabilities: Map[String,Double] = Map.empty
 }
 
+import org.apache.spark.SparkContext
 
 import scala.collection.mutable.ListBuffer
+import org.apache.spark.mllib.linalg.Vectors
 
-class ContinuousEdge() extends Edge[Double] {
+abstract class ContinuousEdge() extends Edge[Double]
+
+class ContinuousGaussianEdge() extends ContinuousEdge {
 
   override def learn(occurence: Double): Unit = {
     occurrences += occurence
   }
 
   override def learnFinalize(): Unit = {
-    mean = occurrences.sum / occurrences.length
-    variance = occurrences.map(o => scala.math.pow(o-mean,2)).sum / occurrences.length
+    val mean = occurrences.sum / occurrences.length
+    val variance = occurrences.map(o => scala.math.pow(o-mean,2)).sum / occurrences.length
+    gaussian = new Gaussian(mean, variance)
   }
 
   override def probability(state: Double): Double = {
-    (1/scala.math.sqrt(2*scala.math.Pi*variance))*scala.math.pow(scala.math.E,-scala.math.pow(state - mean, 2)/(2*variance)) //eh.
+    gaussian.density(state)
   }
 
   private var occurrences: ListBuffer[Double] = ListBuffer.empty
-  private var mean: Double = 0.0
-  private var variance: Double = 0.0
+  private var gaussian: Gaussian = _
+}
+
+// k: number of normal distributions in a mixture
+class ContinuousGaussianMixtureEdge(sc: SparkContext, k: Int) extends ContinuousEdge {
+
+  override def learn(occurence: Double): Unit = {
+    occurrences += occurence
+  }
+
+  override def learnFinalize(): Unit = {
+    val data = sc.parallelize(occurrences.map(o => Vectors.dense(o)))
+    val gmm = new org.apache.spark.mllib.clustering.GaussianMixture().setK(k).run(data)
+    val gaussians = ListBuffer.empty[Gaussian]
+    for ( g <- gmm.gaussians )
+      gaussians += new Gaussian(g.mu(0), g.sigma.apply(0,0))
+    gaussianMixture = new GaussianMixture(gaussians.toList)
+  }
+
+  override def probability(state: Double): Double = {
+    gaussianMixture.density(state)
+  }
+
+  private var occurrences: ListBuffer[Double] = ListBuffer.empty
+  private var gaussianMixture: GaussianMixture = _
 }

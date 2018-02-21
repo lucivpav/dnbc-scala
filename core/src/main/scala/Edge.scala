@@ -30,34 +30,13 @@ class DiscreteEdge extends Edge[String] {
 }
 
 import org.apache.spark.SparkContext
+import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
 
 import scala.collection.mutable.ListBuffer
 import org.apache.spark.mllib.linalg.Vectors
 
-abstract class ContinuousEdge() extends Edge[Double]
-
-class ContinuousGaussianEdge() extends ContinuousEdge {
-
-  override def learn(occurence: Double): Unit = {
-    occurrences += occurence
-  }
-
-  override def learnFinalize(): Unit = {
-    val mean = occurrences.sum / occurrences.length
-    val variance = occurrences.map(o => scala.math.pow(o-mean,2)).sum / occurrences.length
-    gaussian = new Gaussian(mean, variance)
-  }
-
-  override def probability(state: Double): Double = {
-    gaussian.density(state)
-  }
-
-  private var occurrences: ListBuffer[Double] = ListBuffer.empty
-  private var gaussian: Gaussian = _
-}
-
 // k: number of normal distributions in a mixture
-class ContinuousGaussianMixtureEdge(sc: SparkContext, k: Int) extends ContinuousEdge {
+class ContinuousEdge(sc: SparkContext, k: Int) extends Edge[Double] {
 
   override def learn(occurence: Double): Unit = {
     occurrences += occurence
@@ -65,17 +44,13 @@ class ContinuousGaussianMixtureEdge(sc: SparkContext, k: Int) extends Continuous
 
   override def learnFinalize(): Unit = {
     val data = sc.parallelize(occurrences.map(o => Vectors.dense(o)))
-    val gmm = new org.apache.spark.mllib.clustering.GaussianMixture().setK(k).run(data)
-    val gaussians = ListBuffer.empty[Gaussian]
-    for ( g <- gmm.gaussians )
-      gaussians += new Gaussian(g.mu(0), g.sigma.apply(0,0))
-    gaussianMixture = new GaussianMixture(gaussians.toList)
+    gaussianMixture = new GaussianMixture().setK(k).run(data)
   }
 
   override def probability(state: Double): Double = {
-    gaussianMixture.density(state)
+    GaussianUtils.gaussianMixturePdf(gaussianMixture.gaussians.toList, state)
   }
 
   private var occurrences: ListBuffer[Double] = ListBuffer.empty
-  private var gaussianMixture: GaussianMixture = _
+  private var gaussianMixture: GaussianMixtureModel = _
 }

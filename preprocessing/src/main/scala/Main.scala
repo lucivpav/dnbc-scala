@@ -1,5 +1,8 @@
 import java.io.{File, PrintWriter}
 
+import org.apache.spark.mllib.linalg.{Matrices, Vectors}
+import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
+
 import scala.io.Source
 import scala.util.Random
 
@@ -17,11 +20,6 @@ object Main {
     var in = Source.fromFile("dataset/robot_no_momentum.data")
     var out = new PrintWriter(new File(continuousDataSetName))
 
-    val RedGaussian = new Gaussian(20, 25)
-    val GreenGaussian = new Gaussian(35, 49)
-    val BlueGaussian = new Gaussian(15, 9)
-    val YellowGaussian = new Gaussian(5, 1)
-
     for (line <- in.getLines()) {
       if (line == "." || line == "..") {
         out.write(line + "\n")
@@ -30,10 +28,10 @@ object Main {
         val hiddenState = line.substring(0, 3)
         val observedDiscreteState = line.substring(4)
         val observedContinuousState = observedDiscreteState match {
-          case "r" => RedGaussian.nextRandom()
-          case "g" => GreenGaussian.nextRandom()
-          case "b" => BlueGaussian.nextRandom()
-          case "y" => YellowGaussian.nextRandom()
+          case "r" => GaussianUtils.nextGaussian(20,25)
+          case "g" => GaussianUtils.nextGaussian(35, 49)
+          case "b" => GaussianUtils.nextGaussian(15, 9)
+          case "y" => GaussianUtils.nextGaussian(5, 1)
         }
         out.write(hiddenState + " " + observedContinuousState + "\n")
       }
@@ -94,14 +92,14 @@ object Main {
   private def GenerateDataSetWithGaussianMixtureVariable(dataSetName: String): Unit = {
     var out = new PrintWriter(new File(dataSetName))
     val rnd = new Random()
-    val gaussian = new Gaussian(0, 16)
-    val gaussianMixture = new GaussianMixture(List(new Gaussian(-20, 9), new Gaussian(20, 9)))
+    val gaussians = List(new MultivariateGaussian(Vectors.dense(-20), Matrices.dense(1,1, Array(9))),
+                          new MultivariateGaussian(Vectors.dense(20), Matrices.dense(1,1, Array(9))))
     for ( i <- 0 until 2001 ) {
       val hiddenState = rnd.nextBoolean()
       var value = 0.0
 
-      if ( hiddenState ) value = gaussian.nextRandom()
-      else value = gaussianMixture.nextRandom()
+      if ( hiddenState ) value = GaussianUtils.nextGaussian(0,16)
+      else value = GaussianUtils.nextGaussianMixture(gaussians)
 
       if ( i == 1000 ) out.write("..\n") // separate training and testing data
       else out.write(hiddenState + " " + value + "\n")

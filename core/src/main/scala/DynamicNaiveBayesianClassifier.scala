@@ -110,10 +110,7 @@ class DynamicNaiveBayesianClassifier(sc: SparkContext,
         if (!emission.contains(hiddenState)) {
           val k = continuousVariableHints(i)
           var continuousEdge: ContinuousEdge = null
-          if (k == 1)
-            continuousEdge = new ContinuousGaussianEdge
-          else
-            continuousEdge = new ContinuousGaussianMixtureEdge(sc, continuousVariableHints(i))
+          continuousEdge = new ContinuousEdge(sc, continuousVariableHints(i))
           emission += (hiddenState -> continuousEdge)
         }
         emission(hiddenState).learn(observedState)

@@ -19,8 +19,8 @@ object Main {
   private def GenerateContinuousDataSet(continuousDataSetName: String): Unit = {
     var in = Source.fromFile("dataset/robot_no_momentum.data")
     var out = new PrintWriter(new File(continuousDataSetName))
-
-    for (line <- in.getLines()) {
+    out.write("discrete continuous\n")
+    for (line <- in.getLines().drop(1)) {
       if (line == "." || line == "..") {
         out.write(line + "\n")
       }
@@ -44,7 +44,8 @@ object Main {
   private def GenerateDataSetWithTwoVariables(continuousDataSetName: String): Unit = {
     var in = Source.fromFile(continuousDataSetName)
     var out = new PrintWriter(new File("dataset/robot_no_momentum_bivariate.data"))
-    for (line <- in.getLines()) {
+    out.write("discrete continuous discrete\n")
+    for (line <- in.getLines().drop(1)) {
       if (line == "." || line == "..") {
         out.write(line + "\n")
       }
@@ -91,6 +92,7 @@ object Main {
 
   private def GenerateDataSetWithGaussianMixtureVariable(dataSetName: String): Unit = {
     var out = new PrintWriter(new File(dataSetName))
+    out.write("discrete continuous\n")
     val rnd = new Random()
     val gaussians = List(new MultivariateGaussian(Vectors.dense(-20), Matrices.dense(1,1, Array(9))),
                           new MultivariateGaussian(Vectors.dense(20), Matrices.dense(1,1, Array(9))))

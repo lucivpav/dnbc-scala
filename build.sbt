@@ -2,13 +2,13 @@ name := "dnbc-scala"
 
 version := "0.1"
 
-scalaVersion := "2.10.7"
+val sparkVer = "2.1.0"
 
-lazy val preprocessing = project in file("preprocessing")
-lazy val core = project in file ("core")
+val commonSettings = Seq(scalaVersion := "2.11.8", libraryDependencies := Seq(
+    "org.apache.spark" %% "spark-core" % sparkVer,
+    "org.apache.spark" %% "spark-mllib" % sparkVer,
+    "org.scalatest" %% "scalatest" % sparkVer
+))
 
-libraryDependencies ++= Seq(
-  "org.apache.spark" % "spark-core_2.10" % "2.0.0",
-  "org.apache.spark" % "spark-mllib_2.10" % "2.0.0",
-  "org.scalatest" % "scalatest_2.10" % "2.0.0" % "test"
-)
+lazy val preprocessing = project in file("preprocessing") dependsOn core settings commonSettings
+lazy val core = project in file ("core") settings commonSettings

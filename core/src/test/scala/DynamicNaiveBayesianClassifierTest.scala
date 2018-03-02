@@ -51,8 +51,12 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
     model.inferMostLikelyHiddenStates(Seq(validObservedState, validObservedState))
   }
 
-  // returns average success rate on provided data set
-  // hints: number of gaussians in each continuos variable
+  /**
+    * Measures performance of DynamicNaiveBayesianClassifier on standardized data set
+    * @param dataSetPath path to data set
+    * @param hints number of normal distributions in each continuous variable
+    * @return average success rate on provided data set
+    */
   private def measurePerformance(dataSetPath: String, hints: Option[List[Int]] = Option.empty): Double = {
     val learningIterable = new DataSetIterable(dataSetPath, true)
     val testingIterable = new DataSetIterable(dataSetPath, false)

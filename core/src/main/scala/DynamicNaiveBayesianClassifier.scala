@@ -2,11 +2,23 @@ import org.apache.spark.SparkContext
 
 import scala.collection.mutable.ListBuffer
 
+/**
+  * Learned model used for inference
+  * @param initialEdge initial probabilities
+  * @param transitions discrete probabilities
+  * @param discreteEmissions number of items in the list corresponds to the number of discrete observed variables
+  * @param continuousEmissions number of items in the list corresponds to the number of continuous observed variables
+  */
 class DynamicNaiveBayesianClassifier(initialEdge: DiscreteEdge,
                                      transitions: Map[String, DiscreteEdge],
                                      discreteEmissions: List[Map[String, DiscreteEdge]],
                                      continuousEmissions: List[Map[String, ContinuousEdge]]) {
 
+  /**
+    * Infers the most likely sequence of hidden states given observations
+    * @param observedStates number of observed variables must be the same as provided in the constructor
+    * @return a sequence of most likely hidden states
+    */
   def inferMostLikelyHiddenStates(observedStates: Seq[ObservedState]): List[String] = {
     checkValidObservations(observedStates)
     val probs = viterbiInitialize(observedStates)
@@ -61,19 +73,36 @@ class DynamicNaiveBayesianClassifier(initialEdge: DiscreteEdge,
   }
 }
 
+/**
+  * All observed variables at given time point
+  * @param discreteVariables the states of discrete variables
+  * @param continuousVariables the states of continuous variables
+  */
 class ObservedState(discreteVariables: List[String], continuousVariables: List[Double]) {
   def DiscreteVariables: List[String] = discreteVariables
   def ContinuousVariables: List[Double] = continuousVariables
 }
 
+/**
+  * Observed and hidden state at given time point
+  * @param hiddenState
+  * @param observedState
+  */
 class State(hiddenState: String, observedState: ObservedState) {
   def HiddenState: String = hiddenState
   def ObservedState: ObservedState = observedState
 }
 
+/** Factory for DynamicNaiveBayesianClassifier instances */
 object DynamicNaiveBayesianClassifier {
-  // continuousVariableHints - assumed number of normal distributions in a
-  //                            particular continuous variable (Gaussian mixture), default is 1
+  /**
+    * Creates a DynamicNaiveBayesianClassifier model learned from sequences using maximum likelihood estimation
+    * @param sc spark context
+    * @param sequences sequences to be learned from
+    * @param continuousVariableHints assumed number of normal distributions in a particular continuous variable
+    *                                (GaussinMixture), default is 1 per each continuous variable
+    * @return learned DynamicNaiveBayesicalClassifier model
+    */
   def mle(sc: SparkContext,
           sequences: Iterable[Seq[State]],
           continuousVariableHints: Option[List[Int]] = Option.empty)

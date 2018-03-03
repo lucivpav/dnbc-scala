@@ -7,18 +7,19 @@ import scala.io.Source
 import scala.util.Random
 
 object Main {
+  private val dataSetDirectory = "core/src/test/resources"
 
   def main(args: Array[String]): Unit = {
-    val continuousDatasetName = "dataset/robot_no_momentum_continuous.data"
+    val continuousDatasetName = "robot_no_momentum_continuous.data"
     GenerateContinuousDataSet(continuousDatasetName)
     GenerateDataSetWithTwoVariables(continuousDatasetName)
-    GenerateDataSetWithGaussianMixtureVariable("dataset/gaussian_mixture.data")
+    GenerateDataSetWithGaussianMixtureVariable("gaussian_mixture.data")
   }
 
   // Generates continuous data set based on robot_no_momentum.data
   private def GenerateContinuousDataSet(continuousDataSetName: String): Unit = {
-    var in = Source.fromFile("dataset/robot_no_momentum.data")
-    var out = new PrintWriter(new File(continuousDataSetName))
+    val in = Source.fromFile(dataSetDirectory + "/robot_no_momentum.data")
+    var out = new PrintWriter(new File(dataSetDirectory + "/" + continuousDataSetName))
     out.write("discrete continuous\n")
     for (line <- in.getLines().drop(1)) {
       if (line == "." || line == "..") {
@@ -42,8 +43,8 @@ object Main {
   // Generates data set based on previously generated continuous data set
   // The resulting data set contains two observed variables, one discrete and one continuous
   private def GenerateDataSetWithTwoVariables(continuousDataSetName: String): Unit = {
-    var in = Source.fromFile(continuousDataSetName)
-    var out = new PrintWriter(new File("dataset/robot_no_momentum_bivariate.data"))
+    val in = Source.fromFile(dataSetDirectory + "/" + continuousDataSetName)
+    var out = new PrintWriter(new File(dataSetDirectory + "/robot_no_momentum_bivariate.data"))
     out.write("discrete continuous discrete\n")
     for (line <- in.getLines().drop(1)) {
       if (line == "." || line == "..") {
@@ -91,7 +92,7 @@ object Main {
   }
 
   private def GenerateDataSetWithGaussianMixtureVariable(dataSetName: String): Unit = {
-    var out = new PrintWriter(new File(dataSetName))
+    var out = new PrintWriter(new File(dataSetDirectory + "/" + dataSetName))
     out.write("discrete continuous\n")
     val rnd = new Random()
     val gaussians = List(new MultivariateGaussian(Vectors.dense(-20), Matrices.dense(1,1, Array(9))),

@@ -39,12 +39,10 @@ class DataSetIterator(types: Array[String], lines: Iterator[String]) extends Ite
   * Sequences to be learned follow, separated by line "."
   * Training and testing sequences are separated by line ".."
   * See files in dataset folder for an example of a data set suitable for reading by this class
-  * @param fileName path to data set
+  * @param lines iterator of lines in data set file
   * @param learning learning data is being consumed if true, testing data otherwise
   */
-class DataSetIterable(fileName: String, learning: Boolean) extends Iterable[Seq[State]] {
-  private val file = Source.fromFile(fileName)
-  private val lines = file.getLines()
+class DataSetIterable(lines: Iterator[String], learning: Boolean) extends Iterable[Seq[State]] {
   private val types = getVariableTypes
 
   if ( !learning )

@@ -2,6 +2,8 @@ import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 
 import scala.io.Source
+import java.io.File
+import java.util.concurrent.TimeUnit
 
 class DynamicNaiveBayesianClassifierTest extends FunSuite {
 
@@ -9,19 +11,19 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
                                 .getOrCreate().sparkContext
 
   test("Single discrete observed variable") {
-    val avg = measurePerformance("/robot_no_momentum.data")
+    val avg = measurePerformance("/robot_no_momentum.data").successRate
     println(s"Average success rate: $avg%")
     assert( avg > 65 )
   }
 
   test("Single continuous observed variable") {
-    val avg = measurePerformance("/robot_no_momentum_continuous.data")
+    val avg = measurePerformance("/robot_no_momentum_continuous.data").successRate
     println(s"Average success rate: $avg%")
     assert( avg > 40 )
   }
 
   test("One continuous and one discrete observed variable") {
-    val avg = measurePerformance("/robot_no_momentum_bivariate.data")
+    val avg = measurePerformance("/robot_no_momentum_bivariate.data").successRate
     println(s"Average success rate: $avg%")
     assert( avg > 55 )
   }
@@ -29,8 +31,8 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
   // warning: this test may sometimes fail, due to the nature of GM, whose success depends on luck with initial guess
   test("Variable with Gaussian mixture") {
     val dataSetPath = "/gaussian_mixture.data"
-    val rate1 = measurePerformance(dataSetPath, Option(List(1)))
-    val rate2 = measurePerformance(dataSetPath, Option(List(2)))
+    val rate1 = measurePerformance(dataSetPath, Option(List(1))).successRate
+    val rate2 = measurePerformance(dataSetPath, Option(List(2))).successRate
     assert ( rate1+0.03 < rate2 )
   }
 
@@ -53,23 +55,59 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
     model.inferMostLikelyHiddenStates(Seq(validObservedState, validObservedState))
   }
 
+  test("Assure sequential implementation computes big data set in reasonable time") {
+    val dataSetPath = "dataset/performance.data"
+    assert ( new File(dataSetPath).exists )
+    val perf = measurePerformance(dataSetPath, Option.empty, false)
+    //assert( perf.successRate > 43 )
+    val learningTime = TimeUnit.SECONDS.convert(perf.learningTime, TimeUnit.NANOSECONDS)
+    val testingTime = TimeUnit.SECONDS.convert(perf.testingTime, TimeUnit.NANOSECONDS)
+    println(s"Learning time: $learningTime\n Testing time: $testingTime")
+    assert( learningTime > 60 && learningTime < 120 )
+    assert( testingTime == 1 )
+  }
+
+  // time in ns
+  case class Performance(successRate: Double, learningTime: Long, testingTime: Long)
+
   /**
     * Measures performance of DynamicNaiveBayesianClassifier on standardized data set
     * @param dataSetPath path to data set
     * @param hints number of normal distributions in each continuous variable
     * @return average success rate on provided data set
     */
-  private def measurePerformance(dataSetPath: String, hints: Option[List[Int]] = Option.empty): Double = {
-    val firstReader = Source.fromInputStream(getClass.getResourceAsStream(dataSetPath)).getLines()
-    val secondReader = Source.fromInputStream(getClass.getResourceAsStream(dataSetPath)).getLines()
+  private def measurePerformance(dataSetPath: String,
+                                 hints: Option[List[Int]] = Option.empty,
+                                 resourcesPath: Boolean = true): Performance = {
+    var firstReader: Iterator[String] = null
+    var secondReader: Iterator[String] = null
+
+    if (resourcesPath) {
+      firstReader = Source.fromInputStream(getClass.getResourceAsStream(dataSetPath)).getLines()
+      secondReader = Source.fromInputStream(getClass.getResourceAsStream(dataSetPath)).getLines()
+    }
+    else {
+      firstReader = Source.fromFile(dataSetPath).getLines()
+      secondReader= Source.fromFile(dataSetPath).getLines()
+    }
+
     val learningIterable = new DataSetIterable(firstReader, true)
     val testingIterable = new DataSetIterable(secondReader, false)
+
+    val learningTimeBegin = System.nanoTime()
     val model = DynamicNaiveBayesianClassifier.mle(sc, learningIterable, hints)
-    val successRates = testingIterable.map(seq => {
+    val learningTimeDuration = System.nanoTime()-learningTimeBegin
+
+    val batches = testingIterable.map(seq => {
+      val testingTimeBegin = System.nanoTime()
       val inferredHiddenStates = model.inferMostLikelyHiddenStates(seq.map(s => s.ObservedState))
+      val testingTimeDuration = (System.nanoTime()-testingTimeBegin)
+
       val correctCount = seq.map(s => s.HiddenState).zipWithIndex.count(z => z._1 == inferredHiddenStates(z._2))
-      correctCount / inferredHiddenStates.length.toDouble
+      Performance(correctCount / inferredHiddenStates.length.toDouble, -1, testingTimeDuration)
     }).toList
-    (successRates.sum / successRates.length) * 100
+    val avg = (batches.map(p => p.successRate).sum / batches.length) * 100
+    val testingTimeDuration = batches.map(p => p.testingTime).sum
+    Performance(avg, learningTimeDuration, testingTimeDuration)
   }
 }

@@ -9,6 +9,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
 
   private val sc = SparkSession.builder.appName("Simple Application").config("spark.master", "local")
                                 .getOrCreate().sparkContext
+  sc.setLogLevel("ERROR")
 
   test("Single discrete observed variable") {
     val avg = measurePerformance("/robot_no_momentum.data").successRate
@@ -59,22 +60,29 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
     val dataSetPath = "dataset/performance.data"
     assert ( new File(dataSetPath).exists )
     val perf = measurePerformance(dataSetPath, Option.empty, false)
-    //assert( perf.successRate > 43 )
+    println(s"Average success rate: ${perf.successRate}%")
+    assert( perf.successRate > 10 )
     val learningTime = TimeUnit.SECONDS.convert(perf.learningTime, TimeUnit.NANOSECONDS)
     val testingTime = TimeUnit.SECONDS.convert(perf.testingTime, TimeUnit.NANOSECONDS)
     println(s"Learning time: $learningTime\n Testing time: $testingTime")
-    assert( learningTime > 60 && learningTime < 120 )
-    assert( testingTime == 1 )
+    assert( learningTime > 60 && learningTime < 4*60 )
+    assert( testingTime > 45 && learningTime < 4*45 )
   }
 
-  // time in ns
+  /**
+    * Describes performance on given data set
+    * @param successRate average success rate on provided data set
+    * @param learningTime time spent learning in nanoseconds
+    * @param testingTime time spent on inference in nanoseconds
+    */
   case class Performance(successRate: Double, learningTime: Long, testingTime: Long)
 
   /**
     * Measures performance of DynamicNaiveBayesianClassifier on standardized data set
     * @param dataSetPath path to data set
     * @param hints number of normal distributions in each continuous variable
-    * @return average success rate on provided data set
+    * @param resourcesPath indicates whether the data set is stored in resources folder
+    * @return performance on given data set
     */
   private def measurePerformance(dataSetPath: String,
                                  hints: Option[List[Int]] = Option.empty,

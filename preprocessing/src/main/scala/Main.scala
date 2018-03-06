@@ -10,7 +10,7 @@ object Main {
   private val dataSetDirectory = "core/src/test/resources"
 
   def main(args: Array[String]): Unit = {
-    if ( args.length > 1 && args(1) == "-r" ) {
+    if ( args.length >= 1 && args(0) == "-r" ) {
       val continuousDatasetName = "robot_no_momentum_continuous.data"
       GenerateContinuousDataSet(continuousDatasetName)
       GenerateDataSetWithTwoVariables(continuousDatasetName)

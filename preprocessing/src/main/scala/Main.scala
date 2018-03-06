@@ -6,97 +6,17 @@ import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
 import scala.io.Source
 import scala.util.Random
 
+/**
+  * Generates data sets used by core-test unit tests
+  */
 object Main {
-  private val dataSetDirectory = "core/src/test/resources"
+  private val dataSetDirectory = "core-test/src/test/resources"
 
   def main(args: Array[String]): Unit = {
-    if ( args.length >= 1 && args(0) == "-r" ) {
-      val continuousDatasetName = "robot_no_momentum_continuous.data"
-      GenerateContinuousDataSet(continuousDatasetName)
-      GenerateDataSetWithTwoVariables(continuousDatasetName)
-      GenerateDataSetWithGaussianMixtureVariable("gaussian_mixture.data")
-    }
-    GeneratePerformanceDataSet("performance.data", 200, 38, 200, 200)
-  }
-
-  private def GeneratePerformanceDataSet(dataSetName: String,
-                                         sequenceLength: Int,
-                                         dummyObservedVariableCount: Int,
-                                         learningSetLength: Int,
-                                         testingSetLength: Int): Unit = {
-    new File("dataset").mkdir()
-    val origWorldMatrix = Array("vgyb",
-                                "rvgy",
-                                "gbrv",
-                                "vryb")
-    val worldMatrix = origWorldMatrix.map(row => (0 until 3).map( _ => row)
-                                          .foldLeft(""){ (acc,e) => acc + e}) // increse world size
-    val height = worldMatrix.length
-    val width = worldMatrix(0).length
-    val out = new PrintWriter(new File("dataset/" + dataSetName))
-    out.write("discrete discrete continuous")
-    (0 until dummyObservedVariableCount).foreach( i => {
-      if ( i%2 == 0 )
-        out.write(" discrete")
-      else
-        out.write(" continuous")
-    })
-    out.write("\n")
-
-    (0 until learningSetLength + testingSetLength).foreach( i => {
-      if ( i == learningSetLength )
-        out.write("..\n")
-      else if ( i != 0 )
-        out.write(".\n")
-
-      /* initial position */
-      var generated = false
-      var row = -1
-      var col = -1
-      while (!generated) {
-        row = Random.nextInt(height)
-        col = Random.nextInt(width)
-        if (worldMatrix(row)(col) != 'v')
-          generated = true
-      }
-      val color = worldMatrix(row)(col)
-      writeState(row, col, color, dummyObservedVariableCount, out, width, height)
-
-      /* steps */
-      (0 until sequenceLength).foreach( i => {
-        val movements = List(List(-1,0), List(1,0), List(0,1), List(0,-1))
-        val idx = Random.nextInt(movements.length)
-        val new_row = row + movements(idx)(0).toInt
-        val new_col = col + movements(idx)(1).toInt
-        if (new_row >= 0 && new_col >= 0 && new_row < height && new_col < width
-            && worldMatrix(new_row)(new_col) != 'v') {
-          col = new_col
-          row = new_row
-        }
-
-        var color = worldMatrix(row)(col)
-        writeState(row, col, color, dummyObservedVariableCount, out, width, height)
-      })
-    })
-
-    out.close()
-  }
-
-  private def writeState(row: Int, col: Int, color: Char,
-                         dummyObservedVariableCount: Int, out: PrintWriter,
-                         width: Int, height: Int): Unit = {
-    val temperature = getTemperature(color)
-    val coords = (col+1) + ":" + (row+1)
-    out.write(coords + " " + getQuadrate(coords, width, height) + " " + temperature)
-
-    /* write dummy observations */
-    (0 until dummyObservedVariableCount).foreach( i => {
-      if ( i%2 == 0 )
-        out.write(" " + Random.nextInt(100).toString)
-      else
-        out.write(" " + Random.nextDouble().toString)
-    })
-    out.write("\n")
+    val continuousDatasetName = "robot_no_momentum_continuous.data"
+    GenerateContinuousDataSet(continuousDatasetName)
+    GenerateDataSetWithTwoVariables(continuousDatasetName)
+    GenerateDataSetWithGaussianMixtureVariable("gaussian_mixture.data")
   }
 
   // Generates continuous data set based on robot_no_momentum.data
@@ -111,7 +31,7 @@ object Main {
       else {
         val hiddenState = line.substring(0, 3)
         val observedDiscreteState = line.substring(4)
-        val observedContinuousState = getTemperature(observedDiscreteState(0))
+        val observedContinuousState = TestUtils.GetTemperature(observedDiscreteState(0))
         out.write(hiddenState + " " + observedContinuousState + "\n")
       }
     }
@@ -131,50 +51,11 @@ object Main {
       else {
         val hiddenState = line.substring(0, 3)
         val observedContinuousState = line.substring(4)
-        val observedDiscreteState = getQuadrate(hiddenState)
+        val observedDiscreteState = TestUtils.GetQuadrant(hiddenState)
         out.write(hiddenState + " " + observedContinuousState + " " + observedDiscreteState + "\n")
       }
     }
     out.close()
-  }
-
-  // +-+-+
-  // |2|1|
-  // +-+-+
-  // |3|4|
-  // +-+-+
-  private def getQuadrate(hiddenState: String, width: Int = 4, height: Int = 4): String = {
-    val pError = 0.15
-    val splitted = hiddenState.split(":")
-    val x = splitted(0).toInt
-    val y = splitted(1).toInt
-    var quadrate = 0
-
-    if ( x <= width/2 ) {
-      if ( y <= height/2 )
-        quadrate = 3
-      else
-        quadrate = 2
-    }
-    else {
-      if ( y <= height/2 )
-        quadrate = 4
-      else
-        quadrate = 1
-    }
-
-    if ( Random.nextDouble() < pError )
-      quadrate = Random.nextInt(4)+1
-    quadrate.toString
-  }
-
-  private def getTemperature(color: Char): Double = {
-    color match {
-      case 'r' => GaussianUtils.nextGaussian(20,25)
-      case 'g' => GaussianUtils.nextGaussian(35, 49)
-      case 'b' => GaussianUtils.nextGaussian(15, 9)
-      case 'y' => GaussianUtils.nextGaussian(5, 1)
-    }
   }
 
   private def GenerateDataSetWithGaussianMixtureVariable(dataSetName: String): Unit = {

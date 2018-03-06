@@ -10,11 +10,13 @@ object Main {
   private val dataSetDirectory = "core/src/test/resources"
 
   def main(args: Array[String]): Unit = {
-    //val continuousDatasetName = "robot_no_momentum_continuous.data"
-    //GenerateContinuousDataSet(continuousDatasetName)
-    //GenerateDataSetWithTwoVariables(continuousDatasetName)
-    //GenerateDataSetWithGaussianMixtureVariable("gaussian_mixture.data")
-    GeneratePerformanceDataSet("performance.data", 200, 16, 200, 200)
+    if ( args.length > 1 && args(1) == "-r" ) {
+      val continuousDatasetName = "robot_no_momentum_continuous.data"
+      GenerateContinuousDataSet(continuousDatasetName)
+      GenerateDataSetWithTwoVariables(continuousDatasetName)
+      GenerateDataSetWithGaussianMixtureVariable("gaussian_mixture.data")
+    }
+    GeneratePerformanceDataSet("performance.data", 200, 38, 200, 200)
   }
 
   private def GeneratePerformanceDataSet(dataSetName: String,
@@ -27,7 +29,8 @@ object Main {
                                 "rvgy",
                                 "gbrv",
                                 "vryb")
-    val worldMatrix = origWorldMatrix.map(row => row + row) // increse world size
+    val worldMatrix = origWorldMatrix.map(row => (0 until 3).map( _ => row)
+                                          .foldLeft(""){ (acc,e) => acc + e}) // increse world size
     val height = worldMatrix.length
     val width = worldMatrix(0).length
     val out = new PrintWriter(new File("dataset/" + dataSetName))
@@ -57,7 +60,7 @@ object Main {
           generated = true
       }
       val color = worldMatrix(row)(col)
-      writeState(row, col, color, dummyObservedVariableCount, out)
+      writeState(row, col, color, dummyObservedVariableCount, out, width, height)
 
       /* steps */
       (0 until sequenceLength).foreach( i => {
@@ -72,17 +75,19 @@ object Main {
         }
 
         var color = worldMatrix(row)(col)
-        writeState(row, col, color, dummyObservedVariableCount, out)
+        writeState(row, col, color, dummyObservedVariableCount, out, width, height)
       })
     })
 
     out.close()
   }
 
-  private def writeState(row: Int, col: Int, color: Char, dummyObservedVariableCount: Int, out: PrintWriter): Unit = {
-    val temperature = getTemperatureAssociatedWithColor(color)
+  private def writeState(row: Int, col: Int, color: Char,
+                         dummyObservedVariableCount: Int, out: PrintWriter,
+                         width: Int, height: Int): Unit = {
+    val temperature = getTemperature(color)
     val coords = (col+1) + ":" + (row+1)
-    out.write(coords + " " + getQuadrate(coords) + " " + temperature)
+    out.write(coords + " " + getQuadrate(coords, width, height) + " " + temperature)
 
     /* write dummy observations */
     (0 until dummyObservedVariableCount).foreach( i => {
@@ -106,20 +111,11 @@ object Main {
       else {
         val hiddenState = line.substring(0, 3)
         val observedDiscreteState = line.substring(4)
-        val observedContinuousState = getTemperatureAssociatedWithColor(observedDiscreteState(0))
+        val observedContinuousState = getTemperature(observedDiscreteState(0))
         out.write(hiddenState + " " + observedContinuousState + "\n")
       }
     }
     out.close()
-  }
-
-  private def getTemperatureAssociatedWithColor(color: Char): Double = {
-    color match {
-      case 'r' => GaussianUtils.nextGaussian(20,25)
-      case 'g' => GaussianUtils.nextGaussian(35, 49)
-      case 'b' => GaussianUtils.nextGaussian(15, 9)
-      case 'y' => GaussianUtils.nextGaussian(5, 1)
-    }
   }
 
   // Generates data set based on previously generated continuous data set
@@ -147,12 +143,11 @@ object Main {
   // +-+-+
   // |3|4|
   // +-+-+
-  private def getQuadrate(hiddenState: String): String = {
+  private def getQuadrate(hiddenState: String, width: Int = 4, height: Int = 4): String = {
     val pError = 0.15
-    val width = 4
-    val height = 4
-    val x = hiddenState.substring(0,1).toInt
-    val y = hiddenState.substring(2,3).toInt
+    val splitted = hiddenState.split(":")
+    val x = splitted(0).toInt
+    val y = splitted(1).toInt
     var quadrate = 0
 
     if ( x <= width/2 ) {
@@ -171,6 +166,15 @@ object Main {
     if ( Random.nextDouble() < pError )
       quadrate = Random.nextInt(4)+1
     quadrate.toString
+  }
+
+  private def getTemperature(color: Char): Double = {
+    color match {
+      case 'r' => GaussianUtils.nextGaussian(20,25)
+      case 'g' => GaussianUtils.nextGaussian(35, 49)
+      case 'b' => GaussianUtils.nextGaussian(15, 9)
+      case 'y' => GaussianUtils.nextGaussian(5, 1)
+    }
   }
 
   private def GenerateDataSetWithGaussianMixtureVariable(dataSetName: String): Unit = {

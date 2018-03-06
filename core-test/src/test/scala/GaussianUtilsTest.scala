@@ -1,7 +1,6 @@
 import org.scalatest.FunSuite
 import java.io.{File, PrintWriter}
 
-import org.apache.spark.mllib.clustering.GaussianMixtureModel
 import org.apache.spark.mllib.linalg.{Matrices, Vectors}
 import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
 

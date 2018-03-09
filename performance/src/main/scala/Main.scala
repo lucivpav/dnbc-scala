@@ -21,7 +21,7 @@ object Main {
     val learningTime = TimeUnit.SECONDS.convert(perf.learningTime, TimeUnit.NANOSECONDS)
     val testingTime = TimeUnit.SECONDS.convert(perf.testingTime, TimeUnit.NANOSECONDS)
     println(s"Average success rate: ${perf.successRate}%")
-    println(s"Learning time: $learningTime [s]")
+    println(s"Cummulative learning time: $learningTime [s]")
     println(s"Testing time: $testingTime [s]")
   }
 

@@ -1,3 +1,5 @@
+import java.util.concurrent.TimeUnit
+
 import org.apache.spark.SparkContext
 
 import scala.collection.mutable.ListBuffer
@@ -108,6 +110,7 @@ object DynamicNaiveBayesianClassifier {
           continuousVariableHints: Option[List[Int]] = Option.empty)
           : DynamicNaiveBayesianClassifier = {
 
+    val learningTimeBegin = System.nanoTime() // TODO: only in debug mode
     val firstSequence = sequences.take(1)
     val firstDataPoint = firstSequence.toList.head.take(1)
     val discreteVariablesCount = firstDataPoint.head.ObservedState.DiscreteVariables.length
@@ -139,7 +142,14 @@ object DynamicNaiveBayesianClassifier {
       transitions = learnTransitions(transitions, hiddenStates)
       learnInitialEdge(initialEdge, hiddenStates)
     }
+    val learningTimeDuration = System.nanoTime() - learningTimeBegin
+    val learningTime = TimeUnit.SECONDS.convert(learningTimeDuration, TimeUnit.NANOSECONDS)
+    println(s"Learning time: $learningTime [s]")
+    val learningFinalizeTimeBegin = System.nanoTime() // TODO: only in debug mode
     learnFinalize(initialEdge, transitions, discreteEmissions, continuousEmissions)
+    val learningFinalizeDuration = System.nanoTime() - learningFinalizeTimeBegin
+    val learningFinalizeTime = TimeUnit.SECONDS.convert(learningFinalizeDuration, TimeUnit.NANOSECONDS)
+    println(s"Learning finalize time: $learningFinalizeTime [s]")
     new DynamicNaiveBayesianClassifier(initialEdge, transitions, discreteEmissions.toList, continuousEmissions.toList)
   }
 

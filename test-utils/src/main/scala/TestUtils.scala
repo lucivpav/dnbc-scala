@@ -6,7 +6,7 @@ import scala.util.Random
 object TestUtils {
 
   /**
-    * @return newly crated SparkContext
+    * @return newly created SparkContext
     */
   def GetSparkContext(): SparkContext = {
     val sc = SparkSession.builder.appName("Simple Application").config("spark.master", "local")
@@ -17,7 +17,7 @@ object TestUtils {
 
   /**
     * Returned quadrant can be assigned incorrectly with respect to predefined error rate
-    * @param hiddenState Coordinates, e.g. "4:13"
+    * @param hiddenState coordinates, e.g. "4:13"
     * @param width width of world
     * @param height height of world
     * @return quadrant number, the world rectangle is split into four parts:

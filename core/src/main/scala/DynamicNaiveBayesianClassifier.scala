@@ -9,10 +9,11 @@ import scala.collection.mutable.ListBuffer
   * @param discreteEmissions number of items in the list corresponds to the number of discrete observed variables
   * @param continuousEmissions number of items in the list corresponds to the number of continuous observed variables
   */
-class DynamicNaiveBayesianClassifier(initialEdge: DiscreteEdge,
-                                     transitions: Map[String, DiscreteEdge],
-                                     discreteEmissions: List[Map[String, DiscreteEdge]],
-                                     continuousEmissions: List[Map[String, ContinuousEdge]]) {
+class DynamicNaiveBayesianClassifier(sc: SparkContext,
+                                     initialEdge: LearnedDiscreteEdge,
+                                     transitions: Map[String, LearnedDiscreteEdge],
+                                     discreteEmissions: List[Map[String, LearnedDiscreteEdge]],
+                                     continuousEmissions: List[Map[String, LearnedContinuousEdge]]) extends Serializable {
 
   /**
     * Infers the most likely sequence of hidden states given observations
@@ -139,8 +140,7 @@ object DynamicNaiveBayesianClassifier {
       transitions = learnTransitions(transitions, hiddenStates)
       learnInitialEdge(initialEdge, hiddenStates)
     }
-    learnFinalize(initialEdge, transitions, discreteEmissions, continuousEmissions)
-    new DynamicNaiveBayesianClassifier(initialEdge, transitions, discreteEmissions.toList, continuousEmissions.toList)
+    learnFinalize(sc, initialEdge, transitions, discreteEmissions, continuousEmissions)
   }
 
   private def learnDiscreteEmissions(discreteEmissions: Array[Map[String, DiscreteEdge]],
@@ -202,13 +202,32 @@ object DynamicNaiveBayesianClassifier {
     initialEdge.learn(hiddenStates.head)
   }
 
-  private def learnFinalize(initialEdge: DiscreteEdge, transitions: Map[String, DiscreteEdge],
+  private def learnFinalize(sc: SparkContext,
+                            initialEdge: DiscreteEdge, transitions: Map[String, DiscreteEdge],
                             discreteEmissions: Array[Map[String, DiscreteEdge]],
-                            continuousEmissions: Array[Map[String, ContinuousEdge]]): Unit = {
-    initialEdge.learnFinalize()
-    transitions.foreach(t => t._2.learnFinalize())
-    discreteEmissions.foreach(e => e.foreach(e2 => e2._2.learnFinalize()))
-    continuousEmissions.foreach(e => e.foreach(e2 => e2._2.learnFinalize()))
+                            continuousEmissions: Array[Map[String, ContinuousEdge]]): DynamicNaiveBayesianClassifier = {
+    /* finalize initial edge */
+    val learnedInitialEdge = initialEdge.learnFinalize()
+
+    /* finalize transitions */
+    val parallelTransitions = sc.parallelize(transitions.toSeq)
+    val learnedTransitionsArray = parallelTransitions.map(t => t._1 -> t._2.learnFinalize()).collect()
+    var learnedTransitionsMap = Map.empty[String,LearnedDiscreteEdge]
+    learnedTransitionsArray.foreach(p => learnedTransitionsMap += p)
+
+    /* finalize discrete emissions */
+    val parallelDiscreteEmissions = sc.parallelize(discreteEmissions)
+    val learnedDiscreteEmissions = parallelDiscreteEmissions.map(m => m.map(p => p._1 -> p._2.learnFinalize()))
+                                                                  .collect().toList
+
+    /* finalize continuous emissions */
+    // The reason I am not using SparkContext.parallelize is that the learnFinalize() function itself creates RDD.
+    // Nested RDDs are not allowed in Spark
+    val learnedContinuousEmissions = continuousEmissions.par.map(m => m.par.map(z => z._1 -> z._2.learnFinalize()).seq)
+                                                                  .toList
+
+    new DynamicNaiveBayesianClassifier(sc, learnedInitialEdge, learnedTransitionsMap,
+                                        learnedDiscreteEmissions, learnedContinuousEmissions)
   }
 
   private def initializeEmissions(discreteVariablesCount: Int, continuousVariablesCount: Int,

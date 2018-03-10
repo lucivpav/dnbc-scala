@@ -37,8 +37,10 @@ There are two main reasons for relatively low overall sucess rate:
 
 ### Results
 
-|Property|Value|
-|------------------------|-----|
-|Average success rate [%]|18   |
-|Learning time [s]       |40   |
-|Testing time [s]        |63   |
+|Property                |Sequential|Parallel|
+|------------------------|----------|--------|
+|Average success rate [%]|18        |17      |
+|Learning time [s]       |40        |30      |
+|Testing time [s]        |63        |58*     |
+
+<sub>\* Which is a bit strange, considering inference stage has not been parallelized.</sub>

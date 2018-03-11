@@ -56,18 +56,8 @@ class DynamicNaiveBayesianClassifier(sc: SparkContext,
     for( i <- 1 until sequenceLength )
     {
       path += vprev.maxBy(_._2)._1 // append path
-      vcur = Map.empty[String,Double]
-      for ( hiddenState <- transitions.keys )
-      {
-        var emissionsSum = 0.0
-        emissionsSum += discreteEmissions.zipWithIndex.map(z => z._1(hiddenState)
-                                                            .probability(observedStates(i).DiscreteVariables(z._2))).sum
-        emissionsSum += continuousEmissions.zipWithIndex.map(z => z._1(hiddenState)
-                                                              .probability(observedStates(i).ContinuousVariables(z._2))).sum
-        vcur += (hiddenState -> (Math.log(emissionsSum) +
-                                  vprev.maxBy{case (hs,p) => p + Math.log(transitions(hs).probability(hiddenState))}._2))
-      }
-      vprev = vcur
+      vprev = DynamicNaiveBayesianClassifier.ViterebiParallelSection(sc, transitions, discreteEmissions,
+                                                                      continuousEmissions, observedStates(i), vprev)
     }
     path += vprev.maxBy(_._2)._1
     path.toList
@@ -79,7 +69,7 @@ class DynamicNaiveBayesianClassifier(sc: SparkContext,
   * @param discreteVariables the states of discrete variables
   * @param continuousVariables the states of continuous variables
   */
-class ObservedState(discreteVariables: List[String], continuousVariables: List[Double]) {
+class ObservedState(discreteVariables: List[String], continuousVariables: List[Double]) extends Serializable {
   def DiscreteVariables: List[String] = discreteVariables
   def ContinuousVariables: List[Double] = continuousVariables
 }
@@ -96,6 +86,24 @@ class State(hiddenState: String, observedState: ObservedState) {
 
 /** Factory for DynamicNaiveBayesianClassifier instances */
 object DynamicNaiveBayesianClassifier {
+  def ViterebiParallelSection(sc: SparkContext,
+                              transitions: Map[String,LearnedDiscreteEdge],
+                              discreteEmissions: List[Map[String,LearnedDiscreteEdge]],
+                              continuousEmissions: List[Map[String,LearnedContinuousEdge]],
+                              observedState: ObservedState,
+                              vprev: Map[String,Double]): Map[String,Double] = {
+    var vcur = Map.empty[String,Double]
+    sc.parallelize(transitions.keys.toSeq).map(hiddenState => {
+      var emissionsSum = 0.0
+      emissionsSum += discreteEmissions.zipWithIndex.map(z => z._1(hiddenState)
+                                                         .probability(observedState.DiscreteVariables(z._2))).sum
+      emissionsSum += continuousEmissions.zipWithIndex.map(z => z._1(hiddenState)
+                                                           .probability(observedState.ContinuousVariables(z._2))).sum
+      hiddenState -> (Math.log(emissionsSum) +
+                               vprev.maxBy{case (hs,p) => p + Math.log(transitions(hs).probability(hiddenState))}._2)
+      }).collect().foreach(p => vcur += p)
+    vcur
+  }
   /**
     * Creates a DynamicNaiveBayesianClassifier model learned from sequences using maximum likelihood estimation
     * @param sc spark context

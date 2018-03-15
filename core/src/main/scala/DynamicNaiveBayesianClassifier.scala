@@ -9,8 +9,7 @@ import scala.collection.mutable.ListBuffer
   * @param discreteEmissions number of items in the list corresponds to the number of discrete observed variables
   * @param continuousEmissions number of items in the list corresponds to the number of continuous observed variables
   */
-class DynamicNaiveBayesianClassifier(sc: SparkContext,
-                                     initialEdge: LearnedDiscreteEdge,
+class DynamicNaiveBayesianClassifier(initialEdge: LearnedDiscreteEdge,
                                      transitions: Map[String, LearnedDiscreteEdge],
                                      discreteEmissions: List[Map[String, LearnedDiscreteEdge]],
                                      continuousEmissions: List[Map[String, LearnedContinuousEdge]]) extends Serializable {
@@ -226,7 +225,7 @@ object DynamicNaiveBayesianClassifier {
     val learnedContinuousEmissions = continuousEmissions.par.map(m => m.par.map(z => z._1 -> z._2.learnFinalize()).seq)
                                                                   .toList
 
-    new DynamicNaiveBayesianClassifier(sc, learnedInitialEdge, learnedTransitionsMap,
+    new DynamicNaiveBayesianClassifier(learnedInitialEdge, learnedTransitionsMap,
                                         learnedDiscreteEmissions, learnedContinuousEmissions)
   }
 

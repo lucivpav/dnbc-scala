@@ -3,20 +3,26 @@ import org.scalatest.FunSuite
 class DynamicNaiveBayesianClassifierTest extends FunSuite {
   private val sc = TestUtils.GetSparkContext()
 
-  test("Single discrete observed variable") {
-    val avg = Performance.Measure(sc, "/robot_no_momentum.data").successRate
+  /*test("Single discrete observed variable") {
+    val avg = Performance.Measure(sc, mle = true, "/robot_no_momentum.data").successRate
+    println(s"Average success rate: $avg%")
+    assert( avg > 65 )
+  }*/
+
+  test("BaumWelch: Single discrete observed variable") {
+    val avg = Performance.Measure(sc, mle = false, "/robot_no_momentum.data").successRate
     println(s"Average success rate: $avg%")
     assert( avg > 65 )
   }
 
-  test("Single continuous observed variable") {
-    val avg = Performance.Measure(sc, "/robot_no_momentum_continuous.data").successRate
+  /*test("Single continuous observed variable") {
+    val avg = Performance.Measure(sc, mle = true, "/robot_no_momentum_continuous.data").successRate
     println(s"Average success rate: $avg%")
     assert( avg > 40 )
   }
 
   test("One continuous and one discrete observed variable") {
-    val avg = Performance.Measure(sc, "/robot_no_momentum_bivariate.data").successRate
+    val avg = Performance.Measure(sc, mle = true, "/robot_no_momentum_bivariate.data").successRate
     println(s"Average success rate: $avg%")
     assert( avg > 55 )
   }
@@ -24,8 +30,8 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
   // warning: this test may sometimes fail, due to the nature of GM, whose success depends on luck with initial guess
   test("Variable with Gaussian mixture") {
     val dataSetPath = "/gaussian_mixture.data"
-    val rate1 = Performance.Measure(sc, dataSetPath, Option(List(1))).successRate
-    val rate2 = Performance.Measure(sc, dataSetPath, Option(List(2))).successRate
+    val rate1 = Performance.Measure(sc, mle = true, dataSetPath, Option(List(1))).successRate
+    val rate2 = Performance.Measure(sc, mle = true, dataSetPath, Option(List(2))).successRate
     assert ( rate1+0.03 < rate2 )
   }
 
@@ -46,5 +52,5 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
     val model = DynamicNaiveBayesianClassifier.mle(sc, Seq(validSequence))
     intercept[Exception] { model.inferMostLikelyHiddenStates(Seq(validObservedState, invalidObservedState)) }
     model.inferMostLikelyHiddenStates(Seq(validObservedState, validObservedState))
-  }
+  }*/
 }

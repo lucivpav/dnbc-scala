@@ -20,6 +20,7 @@ object Performance {
     * @return performance on given data set
     */
   def Measure(sparkContext: SparkContext,
+              mle: Boolean,
               dataSetPath: String,
               hints: Option[List[Int]] = Option.empty,
               resourcesPath: Boolean = true): Performance = {
@@ -39,7 +40,11 @@ object Performance {
     val testingIterable = new DataSetIterable(secondReader, false)
 
     val learningTimeBegin = System.nanoTime()
-    val model = DynamicNaiveBayesianClassifier.mle(sparkContext, learningIterable, hints)
+    val model = if (mle)
+                  DynamicNaiveBayesianClassifier.mle(sparkContext, learningIterable, hints)
+                else
+                  DynamicNaiveBayesianClassifier.baumWelch(learningIterable)
+
     val learningTimeDuration = System.nanoTime() - learningTimeBegin
 
     val batches = testingIterable.map(seq => {

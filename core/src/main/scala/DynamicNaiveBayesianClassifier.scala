@@ -1,18 +1,29 @@
 import org.apache.spark.SparkContext
 
 import scala.collection.mutable.ListBuffer
+import scala.util.Random
 
 /**
-  * Learned model used for inference
   * @param initialEdge initial probabilities
   * @param transitions discrete probabilities
   * @param discreteEmissions number of items in the list corresponds to the number of discrete observed variables
   * @param continuousEmissions number of items in the list corresponds to the number of continuous observed variables
   */
-class DynamicNaiveBayesianClassifier(initialEdge: LearnedDiscreteEdge,
-                                     transitions: Map[String, LearnedDiscreteEdge],
-                                     discreteEmissions: List[Map[String, LearnedDiscreteEdge]],
-                                     continuousEmissions: List[Map[String, LearnedContinuousEdge]]) extends Serializable {
+class ModelParameters(initialEdge: LearnedDiscreteEdge,
+                      transitions: Map[String, LearnedDiscreteEdge],
+                      discreteEmissions: List[Map[String, LearnedDiscreteEdge]],
+                      continuousEmissions: List[Map[String, LearnedContinuousEdge]]) {
+  def InitialEdge = initialEdge
+  def Transitions = transitions
+  def DiscreteEmissions = discreteEmissions
+  def ContinuousEmissions = continuousEmissions
+}
+
+/**
+  * Learned model used for inference
+  * @param parameters
+  */
+class DynamicNaiveBayesianClassifier(parameters: ModelParameters) {
 
   /**
     * Infers the most likely sequence of hidden states given observations
@@ -26,14 +37,19 @@ class DynamicNaiveBayesianClassifier(initialEdge: LearnedDiscreteEdge,
   }
 
   private def checkValidObservations(states: Seq[ObservedState]): Unit = {
-    val discreteVariablesCount = discreteEmissions.length
-    val continuousVariablesCount = continuousEmissions.length
+    val discreteVariablesCount = parameters.DiscreteEmissions.length
+    val continuousVariablesCount = parameters.ContinuousEmissions.length
     if ( states.exists( s => s.DiscreteVariables.lengthCompare(discreteVariablesCount) != 0 ||
                               s.ContinuousVariables.lengthCompare(continuousVariablesCount) != 0 ) )
       throw new Exception("Number of observed variables is inconsistent")
   }
 
   private def viterbiInitialize(observedStates: Seq[ObservedState]): Map[String,Double] = {
+    val initialEdge = parameters.InitialEdge
+    val transitions = parameters.Transitions
+    val discreteEmissions = parameters.DiscreteEmissions
+    val continuousEmissions = parameters.ContinuousEmissions
+
     var vcur = Map.empty[String,Double]
     for (hiddenState <- transitions.keys) {
       var emissionsSum = 0.0
@@ -48,6 +64,11 @@ class DynamicNaiveBayesianClassifier(initialEdge: LearnedDiscreteEdge,
 
   private def viterbiCompute(probs: Map[String,Double],
                              observedStates: Seq[ObservedState]): List[String] = {
+    val initialEdge = parameters.InitialEdge
+    val transitions = parameters.Transitions
+    val discreteEmissions = parameters.DiscreteEmissions
+    val continuousEmissions = parameters.ContinuousEmissions
+
     val sequenceLength = observedStates.length
     var vcur = Map.empty[String,Double]
     var vprev = probs
@@ -142,6 +163,287 @@ object DynamicNaiveBayesianClassifier {
     learnFinalize(sc, initialEdge, transitions, discreteEmissions, continuousEmissions)
   }
 
+  def baumWelch(sequences: Iterable[Seq[State]]): DynamicNaiveBayesianClassifier = {
+    val firstSequence = sequences.take(1)
+    val firstDataPoint = firstSequence.toList.head.take(1)
+    val discreteVariablesCount = firstDataPoint.head.ObservedState.DiscreteVariables.length
+    val continuousVariablesCount = firstDataPoint.head.ObservedState.ContinuousVariables.length
+    val originalSequences = (firstSequence ++ sequences).toSeq
+
+    val hiddenStates = List("1:2", "1:3", "2:1", "2:3", "2:4", "3:1", "3:2", "3:3", "3:4", "4:1", "4:2", "4:4") // TODO!
+
+    var possibleTransitions = Map.empty[String,ListBuffer[String]]
+    hiddenStates.foreach(hiddenState => possibleTransitions += hiddenState -> ListBuffer.empty[String])
+    originalSequences.foreach( seq => {
+      (0 until seq.length-1).foreach(i => {
+        val from = seq(i)
+        val to = seq(i+1)
+        if ( !possibleTransitions(from.HiddenState).contains(to.HiddenState) )
+          possibleTransitions(from.HiddenState) += to.HiddenState
+      })
+    })
+    var parameters = getInitialModelParameters(hiddenStates, possibleTransitions.map(t => t._1 -> t._2.toList), discreteVariablesCount)
+
+    val alphas = originalSequences.map( seq => getAlpha(seq.map(s => s.ObservedState), parameters) ).toList
+    val betas = originalSequences.map( seq => getBeta(seq.map(s => s.ObservedState), parameters) ).toList
+
+    var a = Map.empty[String,Map[String,Double]]
+
+    hiddenStates.foreach( hiddenStateFrom => {
+      var innerMap = Map.empty[String,Double]
+      hiddenStates.foreach( hiddenStateTo => {
+        println("Learning transition " + hiddenStateFrom + " -> " + hiddenStateTo)
+
+
+        val top = originalSequences.zipWithIndex.map( z => {
+          val seq = z._1
+          val alpha = alphas(z._2)
+          val beta = betas(z._2)
+          val score = alpha.last.values.sum // P_k
+
+          val topInnerSum = (0 until seq.length-1).map(i => {
+
+            var emissionsProd = parameters.DiscreteEmissions.zipWithIndex.map(z => z._1(hiddenStateTo)
+              .probability(seq(i+1).ObservedState.DiscreteVariables(z._2))).product
+            emissionsProd *= parameters.ContinuousEmissions.zipWithIndex.map(z => z._1(hiddenStateTo)
+              .probability(seq(i+1).ObservedState.ContinuousVariables(z._2))).product
+
+            alpha(i)(hiddenStateFrom) *
+              parameters.Transitions(hiddenStateFrom).probability(hiddenStateTo) *
+              emissionsProd *
+              beta(i+1)(hiddenStateTo)
+          }).sum
+          topInnerSum / score
+        }).sum
+
+        val bottom = originalSequences.zipWithIndex.map( z => {
+          val seq = z._1
+          val alpha = alphas(z._2)
+          val beta = betas(z._2)
+          val score = alpha.last.values.sum // P_k
+
+          val bottomInnerSum = (0 until seq.length - 1).map(i => {
+            alpha(i)(hiddenStateFrom) * beta(i)(hiddenStateFrom)
+          }).sum
+          bottomInnerSum / score
+        }).sum
+
+        val p = top / bottom
+        innerMap += hiddenStateTo -> p
+      })
+      a += hiddenStateFrom -> innerMap
+    })
+
+
+    /* TODO: discrete emissions */
+    (0 until discreteVariablesCount).foreach(emissionIndex => {
+      hiddenStates.map(hiddenState => {
+
+        val top = originalSequences.indices.map(sequenceIndex => {
+          val alpha = alphas(sequenceIndex)
+          val beta = betas(sequenceIndex)
+          val score = alpha.last.values.sum
+          val sequence = originalSequences(sequenceIndex)
+
+          val bottomInnerSum = sequence.indices.map(t => {
+            val state = sequence(t)
+            val observation = state.ObservedState.DiscreteVariables(emissionIndex)
+            if (observation == null /*TODO!*/ )
+              alpha(t)(observation) * beta(t)(observation)
+            else
+              0
+          }).sum
+
+          bottomInnerSum / score
+        }).sum
+
+        // TODO: don't duplicate common functionality
+
+        val bottom = originalSequences.indices.map(sequenceIndex => {
+          val alpha = alphas(sequenceIndex)
+          val beta = betas(sequenceIndex)
+          val score = alpha.last.values.sum
+          val sequence = originalSequences(sequenceIndex)
+
+          val bottomInnerSum = sequence.indices.map(t => {
+            val state = sequence(t)
+            val observation = state.ObservedState.DiscreteVariables(emissionIndex)
+            alpha(t)(observation) * beta(t)(observation)
+          }).sum
+
+          bottomInnerSum / score
+        }).sum
+
+        val p = top / bottom
+        hiddenState -> p
+      })
+    })
+
+    /* initial edge */
+    val pi = hiddenStates.map(hiddenState => {
+      val p = originalSequences.indices.map(i => {
+        val alpha = alphas(i)
+        val beta = betas(i)
+        val score = alpha.last.values.sum // P_k
+
+        (alpha.head(hiddenState) * beta.head(hiddenState)) / score
+      }).sum
+      hiddenState -> p
+    }).toMap
+    val sum = pi.values.sum
+    val normalizedPi = pi.map(z => z._1 -> z._2 / sum) //? ??
+    val initialEdge = new LearnedDiscreteEdge(normalizedPi)
+
+    /* transitions */
+    val transitions = a.map(t => t._1 -> new LearnedDiscreteEdge(t._2))
+
+    val discreteEmissions = null // TODO
+    val continuousEmissions = null // TODO
+    parameters = new ModelParameters(initialEdge, transitions, discreteEmissions, continuousEmissions)
+    null
+  }
+
+  private def getInitialModelParameters(possibleHiddenStates: List[String],
+                                        possibleTransitions: Map[String,List[String]],
+                                        discreteEmissionCount: Int): ModelParameters = {
+    /* initial edge */
+    val initialEdge = new DiscreteEdge
+    possibleHiddenStates.foreach(s => {
+      (0 until Random.nextInt(10)+1).foreach(i => initialEdge.learn(s))
+    })
+    val learnedInitialEdge = initialEdge.learnFinalize()
+
+    /* transitions */
+    var transitions = Map.empty[String,LearnedDiscreteEdge]
+    possibleTransitions.foreach(t => {
+      val from = t._1
+      val edge = new DiscreteEdge
+      t._2.foreach(to => {
+        (0 until Random.nextInt(10)+1).foreach(i => edge.learn(to))
+      })
+      transitions += from -> edge.learnFinalize()
+    })
+
+
+    /*var transitions = Map.empty[String,DiscreteEdge]
+    possibleHiddenStates.foreach(s => {
+      val edge = new DiscreteEdge
+      possibleHiddenStates.foreach(s => { // I don't think all of these are transitioned into
+        edge.learn(s)
+        (0 until Random.nextInt(10)).foreach(i => edge.learn(s))
+      })
+      edge.learnFinalize()
+      transitions += s -> edge
+    })*/
+
+    /* discrete emissions */
+    var discreteEmissions = ListBuffer.empty[Map[String,LearnedDiscreteEdge]]
+    (0 until discreteEmissionCount).foreach( i => {
+      var p = Map.empty[String, LearnedDiscreteEdge]
+      possibleHiddenStates.foreach(s => {
+        val edge = new DiscreteEdge
+        /* TODO! */
+        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("r"))
+        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("g"))
+        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("b"))
+        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("y"))
+        p += s -> edge.learnFinalize()
+      })
+      discreteEmissions += p
+    })
+
+    /* continuous emissions - TODO */
+    var continuousEmissions = List.empty[Map[String,LearnedContinuousEdge]]
+
+    new ModelParameters(learnedInitialEdge, transitions, discreteEmissions.toList, continuousEmissions)
+  }
+
+  // returns forward variable
+  private def getAlpha(observations: Seq[ObservedState], parameters: ModelParameters): List[Map[String,Double]] = {
+    val alpha = ListBuffer.empty[Map[String,Double]]
+
+    /* initialization */
+    var cur = Map.empty[String,Double]
+    parameters.DiscreteEmissions.head.keys.foreach(hiddenState => {
+      var emissionsProd = parameters.DiscreteEmissions.zipWithIndex.map(z => z._1(hiddenState)
+        .probability(observations.head.DiscreteVariables(z._2))).product
+      emissionsProd *= parameters.ContinuousEmissions.zipWithIndex.map(z => z._1(hiddenState)
+        .probability(observations.head.ContinuousVariables(z._2))).product
+      cur += hiddenState -> parameters.InitialEdge.probability(hiddenState) * emissionsProd
+    })
+
+    // normalize
+    val sum = cur.values.sum
+    cur = cur.map(z => z._1 -> z._2 / sum)
+
+    alpha += cur
+
+    /* recursion */
+    (1 until observations.length).foreach(i => {
+      cur = Map.empty[String,Double]
+      alpha.head.keys.foreach(hiddenState1 => {
+        var emissionsProd = parameters.DiscreteEmissions.zipWithIndex.map(z => z._1(hiddenState1)
+          .probability(observations(i).DiscreteVariables(z._2))).product
+        emissionsProd *= parameters.ContinuousEmissions.zipWithIndex.map(z => z._1(hiddenState1)
+          .probability(observations(i).ContinuousVariables(z._2))).product
+
+        val p = alpha.head.keys.map(hiddenState2 => {
+          alpha(i-1)(hiddenState2) * parameters.Transitions(hiddenState2).probability(hiddenState1)
+        }).sum * emissionsProd
+        cur += hiddenState1 -> p
+      })
+
+      // normalize
+      val sum = cur.values.sum
+      cur = cur.map(z => z._1 -> z._2 / sum)
+
+      alpha += cur
+    })
+
+    alpha.toList
+  }
+
+  private def getBeta(observations: Seq[ObservedState], parameters: ModelParameters): List[Map[String,Double]] = {
+    val beta = ListBuffer.empty[Map[String,Double]]
+
+    /* initialization */
+    var cur = Map.empty[String,Double]
+    parameters.DiscreteEmissions.head.keys.foreach(hiddenState => {
+      cur += hiddenState -> 1
+    })
+
+    // normalize
+    val sum = cur.values.sum
+    cur = cur.map(z => z._1 -> z._2 / sum)
+
+    beta += cur
+
+    /* recursion */
+    (1 until observations.length).foreach(i => {
+      cur = Map.empty[String,Double]
+      beta.head.keys.foreach(hiddenState1 => {
+        val p = beta.head.keys.map(hiddenState2 => {
+          val observationIndex = observations.length-i
+          var emissionsProd = parameters.DiscreteEmissions.zipWithIndex.map(z => z._1(hiddenState2)
+            .probability(observations(observationIndex).DiscreteVariables(z._2))).product
+          emissionsProd *= parameters.ContinuousEmissions.zipWithIndex.map(z => z._1(hiddenState2)
+            .probability(observations(observationIndex).ContinuousVariables(z._2))).product
+          parameters.Transitions(hiddenState1).probability(hiddenState2) * emissionsProd * beta(i-1)(hiddenState2)
+        }).sum
+        cur += hiddenState1 -> p
+      })
+
+      // normalize
+      val sum = cur.values.sum
+      cur = cur.map(z => z._1 -> z._2 / sum)
+
+      beta += cur
+    })
+    //beta.foreach(b => print(b.head))
+    //println()
+    beta.reverse.toList
+  }
+
   private def learnDiscreteEmissions(discreteEmissions: Array[Map[String, DiscreteEdge]],
                                      hiddenStates: List[String], observedDiscreteVariables: List[List[String]]): Unit = {
     val sequenceLength = hiddenStates.length
@@ -225,8 +527,8 @@ object DynamicNaiveBayesianClassifier {
     val learnedContinuousEmissions = continuousEmissions.par.map(m => m.par.map(z => z._1 -> z._2.learnFinalize()).seq)
                                                                   .toList
 
-    new DynamicNaiveBayesianClassifier(learnedInitialEdge, learnedTransitionsMap,
-                                        learnedDiscreteEmissions, learnedContinuousEmissions)
+    new DynamicNaiveBayesianClassifier(new ModelParameters(learnedInitialEdge, learnedTransitionsMap,
+                                        learnedDiscreteEmissions, learnedContinuousEmissions))
   }
 
   private def initializeEmissions(discreteVariablesCount: Int, continuousVariablesCount: Int,

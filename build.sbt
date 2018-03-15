@@ -4,7 +4,7 @@ version := "0.1"
 
 val sparkVer = "2.1.0"
 
-val commonSettings = Seq(scalaVersion := "2.11.8", fork := true, libraryDependencies := Seq(
+val commonSettings = Seq(scalaVersion := "2.11.8", fork := false, libraryDependencies := Seq(
     "org.apache.spark" %% "spark-core" % sparkVer,
     "org.apache.spark" %% "spark-mllib" % sparkVer,
     "org.scalatest" %% "scalatest" % sparkVer

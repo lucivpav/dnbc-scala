@@ -30,18 +30,7 @@ object GaussianUtils {
     * @return random number that corresponds to given gaussian mixture distribution
     */
   def nextGaussianMixture(gaussians: List[WeightedGaussian]): Double = {
-    /* TODO: extract. this shares similar functionality with RandomDiscreteEdge */
-    val random = Random.nextDouble()
-    var acc = 0.0
-    var idx = -1
-    gaussians.zipWithIndex.foreach(z => {
-      if ( acc < random && random <= acc+z._1.Weight )
-        idx = z._2
-      acc += z._1.Weight
-    })
-    if (idx == -1)
-      throw new Exception("nextGaussianMixture() failed")
-
+    val idx = RandomUtils.nextProbabilityIndex(gaussians.map(g => g.Weight))
     nextGaussian(gaussians(idx).Gaussian.mu(0), gaussians(idx).Gaussian.sigma.apply(0,0))
   }
 

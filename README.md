@@ -23,9 +23,12 @@ There are two main reasons for relatively low overall sucess rate:
 |--------------------------------|-----|
 |Number of hidden states         |36   |
 |Sequence length                 |200  |
-|Observed variables              |40   |
-|Learning set length (#sequences)|200  |
+|Observed discrete variables     |5    |
+|Observed continuous variables   |5    |
+|Learning set length (#sequences)|3000 |
 |Testing set length (#sequences) |200  |
+|Max Gaussians per mixture       |3    |
+|Transitions per hidden state    |5    |
 
 ### Machine
 
@@ -37,10 +40,9 @@ There are two main reasons for relatively low overall sucess rate:
 
 ### Results
 
-|Property                |Sequential|Parallel|
+|Property                |Workers=1|Workers=2|
 |------------------------|----------|--------|
-|Average success rate [%]|18        |17      |
-|Learning time [s]       |40        |30      |
-|Testing time [s]        |63        |58*     |
+|Learning time [s]       |37        |34      |
+|Testing time [s]        |16        |16     |
 
-<sub>\* Which is a bit strange, considering inference stage has not been parallelized.</sub>
+Average success rate: 66%

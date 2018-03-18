@@ -18,11 +18,11 @@ object Main {
     val temp = Files.createTempDir()
     temp.deleteOnExit()
     val dataSetPath = temp.getPath + "/performance.data"
-    generatePerformanceDataSet(dataSetPath, 200, 3000, 200, 36, 5, 5, 3, 5)
+    val hints = generatePerformanceDataSet(dataSetPath, 200, 1000, 200, 10, 5, 5, 3, 5)
     //generateLegacyPerformanceDataSet(dataSetPath, 200, 38, 200, 200, 3)
 
     val sc = TestUtils.GetSparkContext()
-    val perf = Performance.Measure(sc, dataSetPath, Option.empty, resourcesPath = false)
+    val perf = Performance.Measure(sc, dataSetPath, Option(hints), resourcesPath = false)
     val learningTime = TimeUnit.SECONDS.convert(perf.learningTime, TimeUnit.NANOSECONDS)
     val testingTime = TimeUnit.SECONDS.convert(perf.testingTime, TimeUnit.NANOSECONDS)
     println(s"Average success rate: ${perf.successRate}%")
@@ -32,16 +32,17 @@ object Main {
 
   def generatePerformanceDataSet(path: String, sequenceLength: Int, learningSetLength: Int, testingSetLength: Int,
               hiddenStateCount: Int, discreteEmissionCount: Int, continuousEmissionCount: Int,
-              maxGaussiansPerMixture: Int, transitionsPerNode: Int): Unit = {
+              maxGaussiansPerMixture: Int, transitionsPerNode: Int): List[Int] = {
 
     val hiddenStates = (0 until hiddenStateCount).map(i => "h" + i.toString).toList
     val initialEdge = getInitialEdge(hiddenStates)
     val transitions = getTransitions(transitionsPerNode, hiddenStates)
     val discreteEmissions = getDiscreteEmissions(discreteEmissionCount, hiddenStates)
-    val continuousEmissions = getContinuousEmissions(continuousEmissionCount, maxGaussiansPerMixture, hiddenStates)
+    val continuousVariables = getContinuousEmissions(continuousEmissionCount, maxGaussiansPerMixture, hiddenStates)
 
     generateDataSet(path, sequenceLength, learningSetLength, testingSetLength,
-      initialEdge, transitions, discreteEmissions, continuousEmissions)
+      initialEdge, transitions, discreteEmissions, continuousVariables.map(e => e.Emissions))
+    continuousVariables.map(e => e.Gaussians)
   }
 
   private def getInitialEdge(hiddenStates: List[String]): RandomDiscreteEdge = {
@@ -81,11 +82,17 @@ object Main {
     }).toList
   }
 
+  private class ContinuousVariable(emissions: Map[String,RandomContinuousEdge], gaussians: Int) {
+    def Emissions = emissions
+    def Gaussians = gaussians
+  }
+
   private def getContinuousEmissions(emissionCount: Int, maxGaussiansPerMixture: Int,
-                                     hiddenStates: List[String]): List[Map[String,RandomContinuousEdge]] = {
-    (0 until emissionCount).map(_ => {
-      hiddenStates.map(hiddenState => {
-        val gaussians = (0 until 1+Random.nextInt(maxGaussiansPerMixture+1)).map(_ => {
+                                     hiddenStates: List[String]): List[ContinuousVariable] = {
+    val gaussianCounts = (0 until emissionCount).map(_ => 1+Random.nextInt(maxGaussiansPerMixture+1)).toList
+    (0 until emissionCount).map(i => {
+      val emissions = hiddenStates.map(hiddenState => {
+        val gaussians = (0 until gaussianCounts(i)).map(_ => {
           val minMean = -10
           val maxMean = 10
           val mean = Random.nextInt(maxMean - minMean + 1) + minMean
@@ -99,6 +106,7 @@ object Main {
         val weight = 1.0/gaussians.length
         hiddenState -> new RandomContinuousEdge(gaussians.map(g => new WeightedGaussian(weight,g)))
       }).toMap
+      new ContinuousVariable(emissions, gaussianCounts(i))
     }).toList
   }
 

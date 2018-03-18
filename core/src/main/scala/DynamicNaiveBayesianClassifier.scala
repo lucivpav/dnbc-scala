@@ -37,11 +37,11 @@ class DynamicNaiveBayesianClassifier(initialEdge: LearnedDiscreteEdge,
     var vcur = Map.empty[String,Double]
     for (hiddenState <- transitions.keys) {
       var emissionsSum = 0.0
-      emissionsSum += discreteEmissions.zipWithIndex.map(z => z._1(hiddenState)
-        .probability(observedStates.head.DiscreteVariables(z._2))).sum
-      emissionsSum += continuousEmissions.zipWithIndex.map(z => z._1(hiddenState)
-        .probability(observedStates.head.ContinuousVariables(z._2))).sum
-      vcur += (hiddenState -> (Math.log(emissionsSum) + Math.log(initialEdge.probability(hiddenState))))
+      emissionsSum += discreteEmissions.zipWithIndex.map(z => Math.log(z._1(hiddenState)
+        .probability(observedStates.head.DiscreteVariables(z._2)))).sum
+      emissionsSum += continuousEmissions.zipWithIndex.map(z => Math.log(z._1(hiddenState)
+        .probability(observedStates.head.ContinuousVariables(z._2)))).sum
+      vcur += (hiddenState -> (emissionsSum + Math.log(initialEdge.probability(hiddenState))))
     }
     vcur
   }
@@ -59,11 +59,11 @@ class DynamicNaiveBayesianClassifier(initialEdge: LearnedDiscreteEdge,
       for ( hiddenState <- transitions.keys )
       {
         var emissionsSum = 0.0
-        emissionsSum += discreteEmissions.zipWithIndex.map(z => z._1(hiddenState)
-                                                            .probability(observedStates(i).DiscreteVariables(z._2))).sum
-        emissionsSum += continuousEmissions.zipWithIndex.map(z => z._1(hiddenState)
-                                                              .probability(observedStates(i).ContinuousVariables(z._2))).sum
-        vcur += (hiddenState -> (Math.log(emissionsSum) +
+        emissionsSum += discreteEmissions.zipWithIndex.map(z => Math.log(z._1(hiddenState)
+                                                            .probability(observedStates(i).DiscreteVariables(z._2)))).sum
+        emissionsSum += continuousEmissions.zipWithIndex.map(z => Math.log(z._1(hiddenState)
+                                                              .probability(observedStates(i).ContinuousVariables(z._2)))).sum
+        vcur += (hiddenState -> (emissionsSum +
                                   vprev.maxBy{case (hs,p) => p + Math.log(transitions(hs).probability(hiddenState))}._2))
       }
       vprev = vcur

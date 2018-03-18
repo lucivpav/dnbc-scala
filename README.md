@@ -7,7 +7,7 @@ Data sets based on [Toy Robot data set](https://www.cs.princeton.edu/courses/arc
 |-------------|------------------------|
 |Discrete     |65                      |
 |Continuous   |42                      |
-|Bivariate    |60                      |
+|Bivariate    |76                      |
 
 The average success rate means the average percentage of hidden states inferred correctly.
 

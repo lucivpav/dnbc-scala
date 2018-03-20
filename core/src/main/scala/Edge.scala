@@ -1,7 +1,10 @@
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
 import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
+
 import scala.collection.mutable.ListBuffer
+import scala.util.Random
 
 /**
   * Probabilities of transitions to states
@@ -95,5 +98,42 @@ class ContinuousEdge(sc: SparkContext, k: Int) {
 class LearnedContinuousEdge(model: GaussianMixtureModel) extends LearnedEdge[Double] with Serializable {
   override def probability(state: Double): Double = {
     GaussianUtils.gaussianMixturePdf(model.gaussians.toList, state)
+  }
+}
+
+/**
+  * Provides ability to generate random states given inner probability distribution
+  * @tparam T type of states
+  */
+trait RandomEdge[T] {
+  def next(): T
+}
+
+/**
+  * @param probabilities describes probability function of give edge
+  */
+class RandomDiscreteEdge(probabilities: Map[String,Double]) extends RandomEdge[String] {
+  override def next(): String = {
+    val random = Random.nextDouble()
+    var acc = 0.0
+    probabilities.zipWithIndex.foreach(z => {
+      if ( acc < random && random <= acc+z._1._2 )
+        return z._1._1
+      acc += z._1._2
+    })
+    throw new Exception("RandomDiscreteEdge.next() failed")
+  }
+}
+
+/**
+  * @param gaussians normal distributions representing a gaussian mixture, only one variable per gaussian is supported
+  */
+class RandomContinuousEdge(gaussians: List[MultivariateGaussian]) extends RandomEdge[Double] {
+
+  /**
+    * @return random number that corresponds to given gaussian mixture distribution
+    */
+  override def next(): Double = {
+    GaussianUtils.nextGaussianMixture(gaussians)
   }
 }

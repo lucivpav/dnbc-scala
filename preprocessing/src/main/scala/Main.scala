@@ -1,5 +1,6 @@
 import java.io.{File, PrintWriter}
 
+import GaussianUtils.WeightedGaussian
 import org.apache.spark.mllib.linalg.{Matrices, Vectors}
 import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
 
@@ -62,8 +63,10 @@ object Main {
     var out = new PrintWriter(new File(dataSetDirectory + "/" + dataSetName))
     out.write("discrete continuous\n")
     val rnd = new Random()
-    val gaussians = List(new MultivariateGaussian(Vectors.dense(-20), Matrices.dense(1,1, Array(9))),
-                          new MultivariateGaussian(Vectors.dense(20), Matrices.dense(1,1, Array(9))))
+    val gaussians = List(new WeightedGaussian(0.5, new MultivariateGaussian(Vectors.dense(-20),
+                                                                            Matrices.dense(1,1, Array(9)))),
+                          new WeightedGaussian(0.5, new MultivariateGaussian(Vectors.dense(20),
+                                                                              Matrices.dense(1,1, Array(9)))))
     for ( i <- 0 until 2001 ) {
       val hiddenState = rnd.nextBoolean()
       var value = 0.0

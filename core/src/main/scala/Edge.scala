@@ -1,6 +1,8 @@
+import GaussianUtils.WeightedGaussian
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
 import org.apache.spark.mllib.linalg.Vectors
+
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -94,6 +96,7 @@ class ContinuousEdge(sc: SparkContext, k: Int) {
   */
 class LearnedContinuousEdge(model: GaussianMixtureModel) extends LearnedEdge[Double] with Serializable {
   override def probability(state: Double): Double = {
-    GaussianUtils.gaussianMixturePdf(model.gaussians.toList, state)
+    val weightedGaussians = model.weights.indices.map(i => new WeightedGaussian(model.weights(i), model.gaussians(i)))
+    GaussianUtils.gaussianMixturePdf(weightedGaussians.toList, state)
   }
 }

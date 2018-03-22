@@ -27,7 +27,7 @@ class GaussianUtilsTest extends FunSuite {
     }
     val learnedEdge = edge.learnFinalize()
     val model = learnedEdge.getModel
-    modelOut.write("weight mean sigma\n")
+    modelOut.write("weight mean variance\n")
     (0 until 2).foreach( i => {
       modelOut.write(model.weights(i).toString + " "
                       + model.gaussians(i).mu(0) + " "

@@ -96,4 +96,6 @@ class LearnedContinuousEdge(model: GaussianMixtureModel) extends LearnedEdge[Dou
   override def probability(state: Double): Double = {
     GaussianUtils.gaussianMixturePdf(model.gaussians.toList, state)
   }
+
+  def getModel: GaussianMixtureModel = model
 }

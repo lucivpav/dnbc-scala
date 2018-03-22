@@ -18,21 +18,31 @@ object GaussianUtils {
     Random.nextGaussian()*scala.math.sqrt(variance)+mean
   }
 
+  class WeightedGaussian(weight: Double, gaussian: MultivariateGaussian) {
+    def Weight: Double = weight
+    def Gaussian: MultivariateGaussian = gaussian
+  }
+
+
   /**
     * Returns a randomly generated number from gaussian mixture distribution
     * @param gaussians normal distributions representing a gaussian mixture, only one variable per gaussian is supported
     * @return random number that corresponds to given gaussian mixture distribution
     */
-  def nextGaussianMixture(gaussians: List[MultivariateGaussian]): Double = {
-    var generated = false
-    var random = 0.0
-    while (!generated) {
-      val i = Random.nextInt(gaussians.length)
-      random = nextGaussian(gaussians(i).mu(0), gaussians(i).sigma.apply(0,0))
-      if ( gaussians(i).pdf(Vectors.dense(random)) == gaussianMixturePdf(gaussians, random) )
-        generated = true
-    }
-    random
+  def nextGaussianMixture(gaussians: List[WeightedGaussian]): Double = {
+    /* TODO: extract. this shares similar functionality with RandomDiscreteEdge */
+    val random = Random.nextDouble()
+    var acc = 0.0
+    var idx = -1
+    gaussians.zipWithIndex.foreach(z => {
+      if ( acc < random && random <= acc+z._1.Weight )
+        idx = z._2
+      acc += z._1.Weight
+    })
+    if (idx == -1)
+      throw new Exception("nextGaussianMixture() failed")
+
+    nextGaussian(gaussians(idx).Gaussian.mu(0), gaussians(idx).Gaussian.sigma.apply(0,0))
   }
 
   /**
@@ -41,7 +51,7 @@ object GaussianUtils {
     * @param x point whose probability to obtain
     * @return probablity ranging from 0 to 1
     */
-  def gaussianMixturePdf(gaussians: List[MultivariateGaussian], x: Double): Double = {
-    gaussians.map(g => g.pdf(Vectors.dense(x))).max
+  def gaussianMixturePdf(gaussians: List[WeightedGaussian], x: Double): Double = {
+    gaussians.map(g => g.Weight * g.Gaussian.pdf(Vectors.dense(x))).sum
   }
 }

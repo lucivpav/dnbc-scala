@@ -99,4 +99,6 @@ class LearnedContinuousEdge(model: GaussianMixtureModel) extends LearnedEdge[Dou
     val weightedGaussians = model.weights.indices.map(i => new WeightedGaussian(model.weights(i), model.gaussians(i)))
     GaussianUtils.gaussianMixturePdf(weightedGaussians.toList, state)
   }
+
+  def getModel: GaussianMixtureModel = model
 }

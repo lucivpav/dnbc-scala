@@ -8,8 +8,8 @@ object TestUtils {
   /**
     * @return newly created SparkContext
     */
-  def GetSparkContext(): SparkContext = {
-    val sc = SparkSession.builder.appName("Simple Application").config("spark.master", "local")
+  def GetSparkContext(workers: Int): SparkContext = { // TODO: adjust for use in cluster
+    val sc = SparkSession.builder.appName("Simple Application").config("spark.master", s"local[$workers]")
                                 .getOrCreate().sparkContext
     sc.setLogLevel("ERROR")
     sc

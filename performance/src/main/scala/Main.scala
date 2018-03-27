@@ -3,10 +3,12 @@ import java.util.concurrent.TimeUnit
 
 import GaussianUtils.WeightedGaussian
 import com.google.common.io.Files
+import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.{Matrices, Vectors}
 import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
 
 import scala.collection.mutable.ListBuffer
+import scala.io.Source
 import scala.util.Random
 
 /**
@@ -18,11 +20,42 @@ object Main {
     val temp = Files.createTempDir()
     temp.deleteOnExit()
     val dataSetPath = temp.getPath + "/performance.data"
-    val hints = generatePerformanceDataSet(dataSetPath, 200, 1000, 200, 10, 5, 5, 3, 5)
-    //generateLegacyPerformanceDataSet(dataSetPath, 200, 38, 200, 200, 3)
 
-    val sc = TestUtils.GetSparkContext()
-    val perf = Performance.Measure(sc, dataSetPath, Option(hints), resourcesPath = false)
+    if ( args.length == 0 )
+    {
+      val sc = TestUtils.GetSparkContext(2)
+      generateAndMeasure(sc, dataSetPath, 200, 1000, 200, 10, 5, 5, 3, 5)
+      return
+    }
+    println("assumed structure:")
+    println("workers sequenceLength learningSetLength testingSetLength hiddenStateCount" +
+            "discreteEmissionCount continuousEmissionCount maxGaussiansPerMixture")
+    println("")
+
+    val batch = Source.fromFile(args(0))
+    for ( line <- batch.getLines().drop(1) ) {
+      println(line)
+      val s = line.split(" ").map(str => str.toInt).toList
+      val sc = TestUtils.GetSparkContext(s.head)
+      try {
+        generateAndMeasure(sc, dataSetPath, s(1), s(2), s(3), s(4), s(5), s(6), s(7), s(8))
+      } catch {
+        case e: Exception => println(e)
+      }
+      sc.stop()
+      println("-----------------------------------------")
+    }
+    batch.close()
+  }
+
+  def generateAndMeasure(sc: SparkContext, path: String, sequenceLength: Int, learningSetLength: Int, testingSetLength: Int,
+              hiddenStateCount: Int, discreteEmissionCount: Int, continuousEmissionCount: Int,
+              maxGaussiansPerMixture: Int, transitionsPerNode: Int): Unit = {
+
+    val hints = generatePerformanceDataSet(path, sequenceLength, learningSetLength,testingSetLength, hiddenStateCount,
+                            discreteEmissionCount, continuousEmissionCount, maxGaussiansPerMixture, transitionsPerNode)
+    //generateLegacyPerformanceDataSet(dataSetPath, 200, 38, 200, 200, 3)
+    val perf = Performance.Measure(sc, path, Option(hints), resourcesPath = false)
     val learningTime = TimeUnit.SECONDS.convert(perf.learningTime, TimeUnit.NANOSECONDS)
     val testingTime = TimeUnit.SECONDS.convert(perf.testingTime, TimeUnit.NANOSECONDS)
     println(s"Average success rate: ${perf.successRate}%")

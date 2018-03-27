@@ -21,28 +21,29 @@ There are two main reasons for relatively low overall sucess rate:
 
 |Property                        |Value|
 |--------------------------------|-----|
-|Number of hidden states         |36   |
+|Number of hidden states         |10   |
 |Sequence length                 |200  |
 |Observed discrete variables     |5    |
 |Observed continuous variables   |5    |
-|Learning set length (#sequences)|3000 |
+|Learning set length (#sequences)|1000 |
 |Testing set length (#sequences) |200  |
 |Max Gaussians per mixture       |3    |
 |Transitions per hidden state    |5    |
 
 ### Machine
 
-|Property |Value    |
-|---------|---------|
-|Processor|i5-7200U |
-|Memory   |8GB      |
-|System   |Fedora 27|
+|Property |Value        |
+|---------|-------------|
+|Processor|i5-7200U     |
+|Memory   |8GB          |
+|System   |Fedora 27    |
+|Load     |YouTube music|
 
 ### Results
 
 |Property                |Workers=1|Workers=2|
 |------------------------|----------|--------|
-|Learning time [s]       |37        |34      |
-|Testing time [s]        |16        |16     |
+|Learning time [s]       |120       |100     |
+|Testing time [s]        |5         |5       |
 
-Average success rate: 66%
+Average success rate: 98%

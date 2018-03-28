@@ -184,8 +184,10 @@ object DynamicNaiveBayesianClassifier {
     })
     var parameters = getInitialModelParameters(hiddenStates, possibleTransitions.map(t => t._1 -> t._2.toList), discreteVariablesCount)
 
-    val alphas = originalSequences.map( seq => getAlpha(seq.map(s => s.ObservedState), parameters) ).toList
-    val betas = originalSequences.map( seq => getBeta(seq.map(s => s.ObservedState), parameters) ).toList
+    val alphaPointSequences = originalSequences.map( seq => getAlpha(seq.map(s => s.ObservedState), parameters) ).toList
+    val betas = originalSequences.zipWithIndex.map( z => getBeta(z._1.map(s => s.ObservedState), parameters,
+                                                      alphaPointSequences(z._2).map(ap => ap.ScaleFactor)) ).toList
+    val alphas = alphaPointSequences.map(aps => aps.map(ap => ap.Probabilities))
 
     var a = Map.empty[String,Map[String,Double]]
 
@@ -358,9 +360,14 @@ object DynamicNaiveBayesianClassifier {
     new ModelParameters(learnedInitialEdge, transitions, discreteEmissions.toList, continuousEmissions)
   }
 
+  private class AlphaPoint(probabilities: Map[String,Double], scaleFactor: Double) {
+    def Probabilities = probabilities
+    def ScaleFactor = scaleFactor
+  }
+
   // returns forward variable
-  private def getAlpha(observations: Seq[ObservedState], parameters: ModelParameters): List[Map[String,Double]] = {
-    val alpha = ListBuffer.empty[Map[String,Double]]
+  private def getAlpha(observations: Seq[ObservedState], parameters: ModelParameters): List[AlphaPoint] = {
+    val alpha = ListBuffer.empty[AlphaPoint]
 
     /* initialization */
     var cur = Map.empty[String,Double]
@@ -373,37 +380,40 @@ object DynamicNaiveBayesianClassifier {
     })
 
     // normalize
-    val sum = cur.values.sum
-    cur = cur.map(z => z._1 -> z._2 / sum)
+    val factor = 1.0/cur.values.sum
+    cur = cur.map(z => z._1 -> z._2 * factor)
 
-    alpha += cur
+    alpha += new AlphaPoint(cur, factor)
 
     /* recursion */
     (1 until observations.length).foreach(i => {
       cur = Map.empty[String,Double]
-      alpha.head.keys.foreach(hiddenState1 => {
+      alpha.head.Probabilities.keys.foreach(hiddenState1 => {
         var emissionsProd = parameters.DiscreteEmissions.zipWithIndex.map(z => z._1(hiddenState1)
           .probability(observations(i).DiscreteVariables(z._2))).product
         emissionsProd *= parameters.ContinuousEmissions.zipWithIndex.map(z => z._1(hiddenState1)
           .probability(observations(i).ContinuousVariables(z._2))).product
 
-        val p = alpha.head.keys.map(hiddenState2 => {
-          alpha(i-1)(hiddenState2) * parameters.Transitions(hiddenState2).probability(hiddenState1)
+        val p = alpha.head.Probabilities.keys.map(hiddenState2 => {
+          alpha(i-1).Probabilities(hiddenState2) * parameters.Transitions(hiddenState2).probability(hiddenState1)
         }).sum * emissionsProd
         cur += hiddenState1 -> p
       })
 
       // normalize
-      val sum = cur.values.sum
-      cur = cur.map(z => z._1 -> z._2 / sum)
+      val factor = 1.0/cur.values.sum
+      cur = cur.map(z => z._1 -> z._2 * factor)
 
-      alpha += cur
+      alpha += new AlphaPoint(cur, factor)
     })
 
     alpha.toList
   }
 
-  private def getBeta(observations: Seq[ObservedState], parameters: ModelParameters): List[Map[String,Double]] = {
+  private def getBeta(observations: Seq[ObservedState], parameters: ModelParameters,
+                      scaleFactors: List[Double]): List[Map[String,Double]] = {
+    if ( observations.length != scaleFactors.length )
+      throw new Exception("Incorrect number of scale factors or observations provided")
     val beta = ListBuffer.empty[Map[String,Double]]
 
     /* initialization */
@@ -413,8 +423,7 @@ object DynamicNaiveBayesianClassifier {
     })
 
     // normalize
-    val sum = cur.values.sum
-    cur = cur.map(z => z._1 -> z._2 / sum)
+    cur = cur.map(z => z._1 -> z._2 * scaleFactors.last)
 
     beta += cur
 
@@ -434,8 +443,7 @@ object DynamicNaiveBayesianClassifier {
       })
 
       // normalize
-      val sum = cur.values.sum
-      cur = cur.map(z => z._1 -> z._2 / sum)
+      cur = cur.map(z => z._1 -> z._2 * scaleFactors(scaleFactors.length-1-i))
 
       beta += cur
     })

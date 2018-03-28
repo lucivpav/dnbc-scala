@@ -184,125 +184,129 @@ object DynamicNaiveBayesianClassifier {
     })
     var parameters = getInitialModelParameters(hiddenStates, possibleTransitions.map(t => t._1 -> t._2.toList), discreteVariablesCount)
 
-    val alphaPointSequences = originalSequences.map( seq => getAlpha(seq.map(s => s.ObservedState), parameters) ).toList
-    val betas = originalSequences.zipWithIndex.map( z => getBeta(z._1.map(s => s.ObservedState), parameters,
-                                                      alphaPointSequences(z._2).map(ap => ap.ScaleFactor)) ).toList
-    val alphas = alphaPointSequences.map(aps => aps.map(ap => ap.Probabilities))
+    (0 until 4).foreach(iter => {
+      val alphaPointSequences = originalSequences.map(seq => getAlpha(seq.map(s => s.ObservedState), parameters)).toList
+      val betas = originalSequences.zipWithIndex.map(z => getBeta(z._1.map(s => s.ObservedState), parameters,
+        alphaPointSequences(z._2).map(ap => ap.ScaleFactor))).toList
+      val alphas = alphaPointSequences.map(aps => aps.map(ap => ap.Probabilities))
 
-    var a = Map.empty[String,Map[String,Double]]
+      var a = Map.empty[String, Map[String, Double]]
 
-    hiddenStates.foreach( hiddenStateFrom => {
-      var innerMap = Map.empty[String,Double]
-      hiddenStates.foreach( hiddenStateTo => {
-        println("Learning transition " + hiddenStateFrom + " -> " + hiddenStateTo)
+      hiddenStates.foreach(hiddenStateFrom => {
+        var innerMap = Map.empty[String, Double]
+        hiddenStates.foreach(hiddenStateTo => {
+          println("Learning transition " + hiddenStateFrom + " -> " + hiddenStateTo)
 
 
-        val top = originalSequences.zipWithIndex.map( z => {
-          val seq = z._1
-          val alpha = alphas(z._2)
-          val beta = betas(z._2)
-          val score = alpha.last.values.sum // P_k
+          val top = originalSequences.zipWithIndex.map(z => {
+            val seq = z._1
+            val alpha = alphas(z._2)
+            val beta = betas(z._2)
+            val score = alpha.last.values.sum // P_k
 
-          val topInnerSum = (0 until seq.length-1).map(i => {
+            val topInnerSum = (0 until seq.length - 1).map(i => {
 
-            var emissionsProd = parameters.DiscreteEmissions.zipWithIndex.map(z => z._1(hiddenStateTo)
-              .probability(seq(i+1).ObservedState.DiscreteVariables(z._2))).product
-            emissionsProd *= parameters.ContinuousEmissions.zipWithIndex.map(z => z._1(hiddenStateTo)
-              .probability(seq(i+1).ObservedState.ContinuousVariables(z._2))).product
+              var emissionsProd = parameters.DiscreteEmissions.zipWithIndex.map(z => z._1(hiddenStateTo)
+                .probability(seq(i + 1).ObservedState.DiscreteVariables(z._2))).product
+              emissionsProd *= parameters.ContinuousEmissions.zipWithIndex.map(z => z._1(hiddenStateTo)
+                .probability(seq(i + 1).ObservedState.ContinuousVariables(z._2))).product
 
-            alpha(i)(hiddenStateFrom) *
-              parameters.Transitions(hiddenStateFrom).probability(hiddenStateTo) *
-              emissionsProd *
-              beta(i+1)(hiddenStateTo)
+              alpha(i)(hiddenStateFrom) *
+                parameters.Transitions(hiddenStateFrom).probability(hiddenStateTo) *
+                emissionsProd *
+                beta(i + 1)(hiddenStateTo)
+            }).sum
+            topInnerSum / score
           }).sum
-          topInnerSum / score
-        }).sum
 
-        val bottom = originalSequences.zipWithIndex.map( z => {
-          val seq = z._1
-          val alpha = alphas(z._2)
-          val beta = betas(z._2)
-          val score = alpha.last.values.sum // P_k
+          val bottom = originalSequences.zipWithIndex.map(z => {
+            val seq = z._1
+            val alpha = alphas(z._2)
+            val beta = betas(z._2)
+            val score = alpha.last.values.sum // P_k
 
-          val bottomInnerSum = (0 until seq.length - 1).map(i => {
-            alpha(i)(hiddenStateFrom) * beta(i)(hiddenStateFrom)
+            val bottomInnerSum = (0 until seq.length - 1).map(i => {
+              alpha(i)(hiddenStateFrom) * beta(i)(hiddenStateFrom)
+            }).sum
+            bottomInnerSum / score
           }).sum
-          bottomInnerSum / score
-        }).sum
 
-        val p = top / bottom
-        innerMap += hiddenStateTo -> p
+          val p = top / bottom
+          innerMap += hiddenStateTo -> p
+        })
+        a += hiddenStateFrom -> innerMap
       })
-      a += hiddenStateFrom -> innerMap
-    })
 
 
-    /* TODO: discrete emissions */
-    (0 until discreteVariablesCount).foreach(emissionIndex => {
-      hiddenStates.map(hiddenState => {
+      /* TODO: discrete emissions - not necessarily wrong, may need more iterations */
+      val possibleObservations = List("r", "g", "b", "y") //TODO
+      val newDiscreteEmissions = (0 until discreteVariablesCount).map(emissionIndex => {
+        hiddenStates.map(hiddenState => {
+          val p = possibleObservations.map(observation => {
 
-        val top = originalSequences.indices.map(sequenceIndex => {
-          val alpha = alphas(sequenceIndex)
-          val beta = betas(sequenceIndex)
-          val score = alpha.last.values.sum
-          val sequence = originalSequences(sequenceIndex)
+            val top = originalSequences.indices.map(sequenceIndex => {
+              val alpha = alphas(sequenceIndex)
+              val beta = betas(sequenceIndex)
+              val score = alpha.last.values.sum
+              val sequence = originalSequences(sequenceIndex)
 
-          val bottomInnerSum = sequence.indices.map(t => {
-            val state = sequence(t)
-            val observation = state.ObservedState.DiscreteVariables(emissionIndex)
-            if (observation == null /*TODO!*/ )
-              alpha(t)(observation) * beta(t)(observation)
-            else
-              0
-          }).sum
+              val bottomInnerSum = sequence.indices.map(t => {
+                val state = sequence(t)
+                if (observation == state.ObservedState.DiscreteVariables(emissionIndex))
+                  alpha(t)(hiddenState) * beta(t)(hiddenState)
+                else
+                  0.0
+              }).sum
 
-          bottomInnerSum / score
+              bottomInnerSum / score
+            }).sum
+
+            // TODO: don't duplicate common functionality
+
+            val bottom = originalSequences.indices.map(sequenceIndex => {
+              val alpha = alphas(sequenceIndex)
+              val beta = betas(sequenceIndex)
+              val score = alpha.last.values.sum // P_k
+              val sequence = originalSequences(sequenceIndex)
+
+              val bottomInnerSum = sequence.indices.map(t => {
+                val state = sequence(t)
+                //val observation = state.ObservedState.DiscreteVariables(emissionIndex)
+                alpha(t)(hiddenState) * beta(t)(hiddenState)
+              }).sum
+
+              bottomInnerSum / score
+            }).sum
+
+            val p = top / bottom
+            observation -> p
+          }).toMap
+          hiddenState -> new LearnedDiscreteEdge(p)
+        }).toMap
+      }).toList
+
+      /* initial edge */
+      val pi = hiddenStates.map(hiddenState => {
+        val p = originalSequences.indices.map(i => {
+          val alpha = alphas(i)
+          val beta = betas(i)
+          val score = alpha.last.values.sum // P_k
+
+          (alpha.head(hiddenState) * beta.head(hiddenState)) / score
         }).sum
-
-        // TODO: don't duplicate common functionality
-
-        val bottom = originalSequences.indices.map(sequenceIndex => {
-          val alpha = alphas(sequenceIndex)
-          val beta = betas(sequenceIndex)
-          val score = alpha.last.values.sum
-          val sequence = originalSequences(sequenceIndex)
-
-          val bottomInnerSum = sequence.indices.map(t => {
-            val state = sequence(t)
-            val observation = state.ObservedState.DiscreteVariables(emissionIndex)
-            alpha(t)(observation) * beta(t)(observation)
-          }).sum
-
-          bottomInnerSum / score
-        }).sum
-
-        val p = top / bottom
         hiddenState -> p
-      })
+      }).toMap
+      val sum = pi.values.sum
+      val normalizedPi = pi.map(z => z._1 -> z._2 / sum) //? ??
+      val initialEdge = new LearnedDiscreteEdge(normalizedPi)
+
+      /* transitions */
+      val transitions = a.map(t => t._1 -> new LearnedDiscreteEdge(t._2))
+
+      val continuousEmissions = List.empty // TODO
+      parameters = new ModelParameters(initialEdge, transitions, newDiscreteEmissions, continuousEmissions)
     })
-
-    /* initial edge */
-    val pi = hiddenStates.map(hiddenState => {
-      val p = originalSequences.indices.map(i => {
-        val alpha = alphas(i)
-        val beta = betas(i)
-        val score = alpha.last.values.sum // P_k
-
-        (alpha.head(hiddenState) * beta.head(hiddenState)) / score
-      }).sum
-      hiddenState -> p
-    }).toMap
-    val sum = pi.values.sum
-    val normalizedPi = pi.map(z => z._1 -> z._2 / sum) //? ??
-    val initialEdge = new LearnedDiscreteEdge(normalizedPi)
-
-    /* transitions */
-    val transitions = a.map(t => t._1 -> new LearnedDiscreteEdge(t._2))
-
-    val discreteEmissions = null // TODO
-    val continuousEmissions = null // TODO
-    parameters = new ModelParameters(initialEdge, transitions, discreteEmissions, continuousEmissions)
-    null
+    new DynamicNaiveBayesianClassifier(parameters)
   }
 
   private def getInitialModelParameters(possibleHiddenStates: List[String],

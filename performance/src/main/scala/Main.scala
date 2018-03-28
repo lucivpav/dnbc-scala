@@ -22,7 +22,7 @@ object Main {
     //generateLegacyPerformanceDataSet(dataSetPath, 200, 38, 200, 200, 3)
 
     val sc = TestUtils.GetSparkContext()
-    val perf = Performance.Measure(sc, dataSetPath, Option(hints), resourcesPath = false)
+    val perf = Performance.Measure(sc, mle = true, dataSetPath, Option(hints), resourcesPath = false)
     val learningTime = TimeUnit.SECONDS.convert(perf.learningTime, TimeUnit.NANOSECONDS)
     val testingTime = TimeUnit.SECONDS.convert(perf.testingTime, TimeUnit.NANOSECONDS)
     println(s"Average success rate: ${perf.successRate}%")

@@ -7,7 +7,7 @@ Data sets based on [Toy Robot data set](https://www.cs.princeton.edu/courses/arc
 |-------------|------------------------|
 |Discrete     |65                      |
 |Continuous   |42                      |
-|Bivariate    |60                      |
+|Bivariate    |76                      |
 
 The average success rate means the average percentage of hidden states inferred correctly.
 
@@ -21,26 +21,29 @@ There are two main reasons for relatively low overall sucess rate:
 
 |Property                        |Value|
 |--------------------------------|-----|
-|Number of hidden states         |36   |
+|Number of hidden states         |10   |
 |Sequence length                 |200  |
-|Observed variables              |40   |
-|Learning set length (#sequences)|200  |
+|Observed discrete variables     |5    |
+|Observed continuous variables   |5    |
+|Learning set length (#sequences)|1000 |
 |Testing set length (#sequences) |200  |
+|Max Gaussians per mixture       |3    |
+|Transitions per hidden state    |5    |
 
 ### Machine
 
-|Property |Value    |
-|---------|---------|
-|Processor|i5-7200U |
-|Memory   |8GB      |
-|System   |Fedora 27|
+|Property |Value        |
+|---------|-------------|
+|Processor|i5-7200U     |
+|Memory   |8GB          |
+|System   |Fedora 27    |
+|Load     |YouTube music|
 
 ### Results
 
-|Property                |Sequential|Parallel|
+|Property                |Workers=1|Workers=2|
 |------------------------|----------|--------|
-|Average success rate [%]|18        |17      |
-|Learning time [s]       |40        |30      |
-|Testing time [s]        |63        |58*     |
+|Learning time [s]       |120       |100     |
+|Testing time [s]        |5         |5       |
 
-<sub>\* Which is a bit strange, considering inference stage has not been parallelized.</sub>
+Average success rate: 98%

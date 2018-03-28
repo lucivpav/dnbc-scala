@@ -24,7 +24,7 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
   test("One continuous and one discrete observed variable") {
     val avg = Performance.Measure(sc, mle = true, "/robot_no_momentum_bivariate.data").successRate
     println(s"Average success rate: $avg%")
-    assert( avg > 55 )
+    assert( avg > 72 )
   }
 
   // warning: this test may sometimes fail, due to the nature of GM, whose success depends on luck with initial guess

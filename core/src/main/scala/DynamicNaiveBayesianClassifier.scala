@@ -168,7 +168,7 @@ object DynamicNaiveBayesianClassifier {
     val firstDataPoint = firstSequence.toList.head.take(1)
     val discreteVariablesCount = firstDataPoint.head.ObservedState.DiscreteVariables.length
     val continuousVariablesCount = firstDataPoint.head.ObservedState.ContinuousVariables.length
-    val originalSequences = (firstSequence ++ sequences).toSeq
+    val originalSequences = (firstSequence ++ sequences).toSeq//.take(10)
 
     val hiddenStates = List("1:2", "1:3", "2:1", "2:3", "2:4", "3:1", "3:2", "3:3", "3:4", "4:1", "4:2", "4:4") // TODO!
 
@@ -228,13 +228,22 @@ object DynamicNaiveBayesianClassifier {
 
       val a = hiddenStates.map(hiddenStateFrom => {
         val row = hiddenStates.map(hiddenStateTo => {
-          val a_ij = originalSequences.zipWithIndex.map(sequence => {
+
+          val top = originalSequences.zipWithIndex.map(sequence => {
             val len = sequence._1.length
             (0 until len-1).map(t => {
               gammas(sequence._2)(t)(hiddenStateFrom)(hiddenStateTo)
             }).sum
           }).sum
-          hiddenStateTo -> a_ij
+
+          val bottom = originalSequences.zipWithIndex.map(sequence => {
+            val len = sequence._1.length
+            (0 until len-1).map(t => {
+              deltas(sequence._2)(t)(hiddenStateFrom)
+            }).sum
+          }).sum
+
+          hiddenStateTo -> top/bottom
         }).toMap
         hiddenStateFrom -> row
      }).toMap

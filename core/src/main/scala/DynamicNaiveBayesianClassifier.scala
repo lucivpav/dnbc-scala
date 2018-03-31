@@ -168,7 +168,7 @@ object DynamicNaiveBayesianClassifier {
     val firstDataPoint = firstSequence.toList.head.take(1)
     val discreteVariablesCount = firstDataPoint.head.ObservedState.DiscreteVariables.length
     val continuousVariablesCount = firstDataPoint.head.ObservedState.ContinuousVariables.length
-    val originalSequences = (firstSequence ++ sequences).toSeq//.take(10)
+    val originalSequences = (firstSequence ++ sequences).toSeq.take(10)
 
     val hiddenStates = List("1:2", "1:3", "2:1", "2:3", "2:4", "3:1", "3:2", "3:3", "3:4", "4:1", "4:2", "4:4") // TODO!
 
@@ -184,7 +184,7 @@ object DynamicNaiveBayesianClassifier {
     })
     var parameters = getInitialModelParameters(hiddenStates, possibleTransitions.map(t => t._1 -> t._2.toList), discreteVariablesCount)
 
-    (0 until 4).foreach(iter => {
+    (0 until 40).foreach(iter => {
       val alphaPointSequences = originalSequences.map(seq => getAlpha(seq.map(s => s.ObservedState), parameters)).toList
       val betas = originalSequences.zipWithIndex.map(z => getBeta(z._1.map(s => s.ObservedState), parameters,
         alphaPointSequences(z._2).map(ap => ap.ScaleFactor))).toList
@@ -255,41 +255,27 @@ object DynamicNaiveBayesianClassifier {
           val p = possibleObservations.map(observation => {
 
             val top = originalSequences.indices.map(sequenceIndex => {
-              val alpha = alphas(sequenceIndex)
-              val beta = betas(sequenceIndex)
-              val score = alpha.last.values.sum
               val sequence = originalSequences(sequenceIndex)
 
-              val bottomInnerSum = sequence.indices.map(t => {
+              sequence.indices.map(t => {
                 val state = sequence(t)
                 if (observation == state.ObservedState.DiscreteVariables(emissionIndex))
-                  alpha(t)(hiddenState) * beta(t)(hiddenState)
+                  deltas(sequenceIndex)(t)(hiddenState)
                 else
                   0.0
               }).sum
-
-              bottomInnerSum / score
             }).sum
-
-            // TODO: don't duplicate common functionality
 
             val bottom = originalSequences.indices.map(sequenceIndex => {
-              val alpha = alphas(sequenceIndex)
-              val beta = betas(sequenceIndex)
-              val score = alpha.last.values.sum // P_k
               val sequence = originalSequences(sequenceIndex)
 
-              val bottomInnerSum = sequence.indices.map(t => {
+              sequence.indices.map(t => {
                 val state = sequence(t)
-                //val observation = state.ObservedState.DiscreteVariables(emissionIndex)
-                alpha(t)(hiddenState) * beta(t)(hiddenState)
+                deltas(sequenceIndex)(t)(hiddenState)
               }).sum
-
-              bottomInnerSum / score
             }).sum
 
-            val p = top / bottom
-            observation -> p
+            observation -> top/bottom
           }).toMap
           hiddenState -> new LearnedDiscreteEdge(p)
         }).toMap
@@ -359,10 +345,10 @@ object DynamicNaiveBayesianClassifier {
       possibleHiddenStates.foreach(s => {
         val edge = new DiscreteEdge
         /* TODO! */
-        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("r"))
-        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("g"))
-        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("b"))
-        (0 until Random.nextInt(10)+1).foreach(i => edge.learn("y"))
+        (0 until 10 + Random.nextInt(2)).foreach(i => edge.learn("r"))
+        (0 until 10 + Random.nextInt(2)).foreach(i => edge.learn("g"))
+        (0 until 10 + Random.nextInt(2)).foreach(i => edge.learn("b"))
+        (0 until 10 + Random.nextInt(2)).foreach(i => edge.learn("y"))
         p += s -> edge.learnFinalize()
       })
       discreteEmissions += p

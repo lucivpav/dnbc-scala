@@ -27,25 +27,25 @@ object Main {
       generateAndMeasure(sc, dataSetPath, 200, 1000, 200, 10, 5, 5, 3, 5)
       return
     }
+
+    if ( args.length != 9 )
+    {
+        println("unsupported configuration")
+        return
+    }
     println("assumed structure:")
     println("workers sequenceLength learningSetLength testingSetLength hiddenStateCount" +
             "discreteEmissionCount continuousEmissionCount maxGaussiansPerMixture")
-    println("")
-
-    val batch = Source.fromFile(args(0))
-    for ( line <- batch.getLines().drop(1) ) {
-      println(line)
-      val s = line.split(" ").map(str => str.toInt).toList
-      val sc = TestUtils.GetSparkContext(s.head)
-      try {
-        generateAndMeasure(sc, dataSetPath, s(1), s(2), s(3), s(4), s(5), s(6), s(7), s(8))
-      } catch {
-        case e: Exception => println(e)
-      }
-      sc.stop()
-      println("-----------------------------------------")
+    println("config:")
+    println(args.mkString(" "))
+    val s = args.map(a => a.toInt)
+    val sc = TestUtils.GetSparkContext(s(0))
+    try {
+      generateAndMeasure(sc, dataSetPath, s(1), s(2), s(3), s(4), s(5), s(6), s(7), s(8))
+    } catch {
+      case e: Exception => println(e)
     }
-    batch.close()
+    sc.stop()
   }
 
   def generateAndMeasure(sc: SparkContext, path: String, sequenceLength: Int, learningSetLength: Int, testingSetLength: Int,

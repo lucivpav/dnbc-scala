@@ -22,7 +22,7 @@ class GaussianUtilsTest extends FunSuite {
                                                                             Matrices.dense(1,1, Array(25)))),
                           new WeightedGaussian(0.5, new MultivariateGaussian(Vectors.dense(30),
                                                                               Matrices.dense(1,1, Array(16)))))
-    var edge = new ContinuousEdge(TestUtils.GetSparkContext(), 2)
+    var edge = new ContinuousEdge(TestUtils.GetSparkContext(1), 2)
     for ( i <- 0 until 1000 ) {
       val random = GaussianUtils.nextGaussianMixture(gaussians)
       edge.learn(random)

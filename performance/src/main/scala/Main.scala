@@ -35,7 +35,7 @@ object Main {
     }
     println("assumed structure:")
     println("workers sequenceLength learningSetLength testingSetLength hiddenStateCount" +
-            "discreteEmissionCount continuousEmissionCount maxGaussiansPerMixture")
+            " discreteEmissionCount continuousEmissionCount maxGaussiansPerMixture transitionsPerNode")
     println("config:")
     println(args.mkString(" "))
     val s = args.map(a => a.toInt)

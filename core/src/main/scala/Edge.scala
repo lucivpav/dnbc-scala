@@ -1,7 +1,10 @@
 import GaussianUtils.WeightedGaussian
+import Tools.{ExpectationMaximization1D, KMeans}
+import jMEF.{PVector, UnivariateGaussian, UnivariateGaussianFixedVariance}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.clustering.{GaussianMixture, GaussianMixtureModel}
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.{Matrices, Vectors}
+import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
 
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
@@ -75,15 +78,28 @@ class LearnedDiscreteEdge(probabilities: Map[String,Double]) extends LearnedEdge
   * The probabilities are expected to be continuous gaussian mixtures
   * @param k number of normal distributions in mixture
   */
-class ContinuousEdge(sc: SparkContext, k: Int) {
+class ContinuousEdge(sc: SparkContext, k: Int) extends Edge[Double] with Serializable {
 
   def learn(occurrence: Double): Unit = {
     occurrences += occurrence
   }
 
   def learnFinalize(): LearnedContinuousEdge = {
-    val data = sc.parallelize(occurrences.map(o => Vectors.dense(o)))
-    gaussianMixture = new GaussianMixture().setK(k).run(data)
+    val points = occurrences.map(o => {
+      val vector = new jMEF.PVector(1)
+      vector.array(0) = o
+      vector}
+    ).toArray
+    val clusters = KMeans.run(points, k)
+
+    val init = ExpectationMaximization1D.initialize(clusters)
+    val model = ExpectationMaximization1D.run(points, init)
+
+    gaussianMixture = new GaussianMixtureModel(model.weight, model.param.map(p => {
+      val param = p.asInstanceOf[PVector]
+      new MultivariateGaussian(Vectors.dense(param.array(0)), Matrices.dense(1,1,Array(param.array(1))))
+    }))
+
     new LearnedContinuousEdge(gaussianMixture)
   }
 

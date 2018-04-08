@@ -230,11 +230,10 @@ object DynamicNaiveBayesianClassifier {
     println(s"Discrete emissions learning time: $learningTime[s]")
 
     /* finalize continuous emissions */
-    // The reason I am not using SparkContext.parallelize is that the learnFinalize() function itself creates RDD.
-    // Nested RDDs are not allowed in Spark
     learningTimeBegin = System.nanoTime()
-    val learnedContinuousEmissions = continuousEmissions.par.map(m => m.par.map(z => z._1 -> z._2.learnFinalize()).seq)
-                                                                  .toList
+    val parallelContinuousEmissions = sc.parallelize(continuousEmissions)
+    val learnedContinuousEmissions = parallelContinuousEmissions.map(m => m.map(p => p._1 -> p._2.learnFinalize()))
+                                                                      .collect().toList
     learningTimeDuration = System.nanoTime() - learningTimeBegin
     learningTime = TimeUnit.SECONDS.convert(learningTimeDuration, TimeUnit.NANOSECONDS)
     println(s"Continuous emissions learning time: $learningTime[s]")

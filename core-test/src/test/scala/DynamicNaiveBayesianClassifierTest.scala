@@ -1,7 +1,7 @@
 import org.scalatest.FunSuite
 
 class DynamicNaiveBayesianClassifierTest extends FunSuite {
-  private val sc = TestUtils.GetSparkContext()
+  private val sc = TestUtils.GetSparkContext(1)
 
   test("Single discrete observed variable") {
     val avg = Performance.Measure(sc, "/robot_no_momentum.data").successRate

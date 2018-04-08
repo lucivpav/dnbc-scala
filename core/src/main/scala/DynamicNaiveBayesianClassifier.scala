@@ -1,3 +1,5 @@
+import java.util.concurrent.TimeUnit
+
 import org.apache.spark.SparkContext
 
 import scala.collection.mutable.ListBuffer
@@ -209,21 +211,33 @@ object DynamicNaiveBayesianClassifier {
     val learnedInitialEdge = initialEdge.learnFinalize()
 
     /* finalize transitions */
+    var learningTimeBegin = System.nanoTime()
     val parallelTransitions = sc.parallelize(transitions.toSeq)
     val learnedTransitionsArray = parallelTransitions.map(t => t._1 -> t._2.learnFinalize()).collect()
     var learnedTransitionsMap = Map.empty[String,LearnedDiscreteEdge]
     learnedTransitionsArray.foreach(p => learnedTransitionsMap += p)
+    var learningTimeDuration = System.nanoTime() - learningTimeBegin
+    var learningTime = TimeUnit.SECONDS.convert(learningTimeDuration, TimeUnit.NANOSECONDS)
+    println(s"Transitions learning time: $learningTime[s]")
 
     /* finalize discrete emissions */
+    learningTimeBegin = System.nanoTime()
     val parallelDiscreteEmissions = sc.parallelize(discreteEmissions)
     val learnedDiscreteEmissions = parallelDiscreteEmissions.map(m => m.map(p => p._1 -> p._2.learnFinalize()))
                                                                   .collect().toList
+    learningTimeDuration = System.nanoTime() - learningTimeBegin
+    learningTime = TimeUnit.SECONDS.convert(learningTimeDuration, TimeUnit.NANOSECONDS)
+    println(s"Discrete emissions learning time: $learningTime[s]")
 
     /* finalize continuous emissions */
     // The reason I am not using SparkContext.parallelize is that the learnFinalize() function itself creates RDD.
     // Nested RDDs are not allowed in Spark
+    learningTimeBegin = System.nanoTime()
     val learnedContinuousEmissions = continuousEmissions.par.map(m => m.par.map(z => z._1 -> z._2.learnFinalize()).seq)
                                                                   .toList
+    learningTimeDuration = System.nanoTime() - learningTimeBegin
+    learningTime = TimeUnit.SECONDS.convert(learningTimeDuration, TimeUnit.NANOSECONDS)
+    println(s"Continuous emissions learning time: $learningTime[s]")
 
     new DynamicNaiveBayesianClassifier(learnedInitialEdge, learnedTransitionsMap,
                                         learnedDiscreteEmissions, learnedContinuousEmissions)

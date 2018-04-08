@@ -1,4 +1,4 @@
-workers sequenceLength learningSetLength testingSetLength hiddenStateCount discreteEmissionCount continuousEmissionCount maxGaussiansPerMixture
+workers sequenceLength learningSetLength testingSetLength hiddenStateCount discreteEmissionCount continuousEmissionCount maxGaussiansPerMixture transitionsPerNode
 2 200 500 200 10 5 5 3 5
 2 200 500 200 5 5 5 3 5
 2 200 500 200 10 5 5 2 5

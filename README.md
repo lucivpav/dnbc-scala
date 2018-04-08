@@ -41,9 +41,9 @@ There are two main reasons for relatively low overall sucess rate:
 
 ### Results
 
-|Property                |Workers=1|Workers=2|
+|Property                |Workers=1 |Workers=2|
 |------------------------|----------|--------|
-|Learning time [s]       |120       |100     |
-|Testing time [s]        |5         |5       |
+|Learning time [s]       |8         |5       |
+|Testing time [s]        |4         |4       |
 
-Average success rate: 98%
+Average success rate: 97%

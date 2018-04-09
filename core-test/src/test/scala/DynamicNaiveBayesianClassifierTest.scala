@@ -1,4 +1,8 @@
+import java.io.File
+
 import org.scalatest.FunSuite
+
+import scala.io.Source
 
 class DynamicNaiveBayesianClassifierTest extends FunSuite {
   private val sc = TestUtils.GetSparkContext(1)
@@ -46,5 +50,31 @@ class DynamicNaiveBayesianClassifierTest extends FunSuite {
     val model = DynamicNaiveBayesianClassifier.mle(sc, Seq(validSequence))
     intercept[Exception] { model.inferMostLikelyHiddenStates(Seq(validObservedState, invalidObservedState)) }
     model.inferMostLikelyHiddenStates(Seq(validObservedState, validObservedState))
+  }
+
+  test("Scoring") {
+    val dataSetFile = File.createTempFile("bla", ".data")
+    val dataSetPath = dataSetFile.toString
+    dataSetFile.deleteOnExit()
+    TestUtils.generatePerformanceDataSet(dataSetPath, 200, 1000, 0, 10, 1, 1, 1, 2)
+
+
+    val firstReader = Source.fromFile(dataSetPath).getLines()
+    val learningIterable = new DataSetIterable(firstReader, true)
+    val dnbc = DynamicNaiveBayesianClassifier.mle(sc, learningIterable)
+
+    val secondReader = Source.fromFile(dataSetPath).getLines()
+    val testingIterable = new DataSetIterable(secondReader, true)
+
+    val real = testingIterable.head.map(s => s.ObservedState).toList
+    val fake = scala.util.Random.shuffle(real).map(o => new ObservedState(o.DiscreteVariables, List(scala.util.Random.nextDouble()*30)))
+
+    val scoreReal = dnbc.score(real) // log scores, therefore negative
+    val scoreFake = dnbc.score(fake)
+
+    println("score real: " + scoreReal)
+    println("score fake:" + scoreFake)
+
+    assert ( scoreReal*1.5 > scoreFake )
   }
 }

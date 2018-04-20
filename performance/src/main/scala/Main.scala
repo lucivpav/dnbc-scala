@@ -28,18 +28,23 @@ object Main {
       return
     }
 
-    if ( args.length != 9 )
+    if ( args.length != 9 && args.length != 8 )
     {
         println("unsupported configuration")
         return
     }
     println("assumed structure:")
-    println("workers sequenceLength learningSetLength testingSetLength hiddenStateCount" +
+    val clusterMode = args.length == 8
+    if ( !clusterMode )
+      print("workers ")
+    println("sequenceLength learningSetLength testingSetLength hiddenStateCount" +
             " discreteEmissionCount continuousEmissionCount maxGaussiansPerMixture transitionsPerNode")
     println("config:")
     println(args.mkString(" "))
-    val s = args.map(a => a.toInt)
-    val sc = TestUtils.GetSparkContext(s(0))
+    var s = args.map(a => a.toInt)
+    val sc = if (clusterMode) SparkContext.getOrCreate() else TestUtils.GetSparkContext(s(0))
+    if ( clusterMode )
+      s = (List(-1) ++ s).toArray
     try {
       generateAndMeasure(sc, dataSetPath, s(1), s(2), s(3), s(4), s(5), s(6), s(7), s(8))
     } catch {

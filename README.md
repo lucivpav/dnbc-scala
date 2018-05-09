@@ -1,5 +1,8 @@
 # dnbc-scala
 Parallel implementation of dynamic naive Bayesian classifier
+
+# Download the [paper](https://github.com/lucivpav/bachelors-thesis/raw/0cc4b877f1c41fdd7a91b923ce885bec820b7f0b/Pavel%20Lu%C4%8Div%C5%88%C3%A1k%20BP.pdf).
+
 ## Accuracy 
 Data sets based on [Toy Robot data set](https://www.cs.princeton.edu/courses/archive/fall06/cos402/hw/hw5/hw5.html)
 
